@@ -10,6 +10,8 @@ dependencies = [
 [[package]]
 name = "greenie-proc"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5c2b226872369c3022bea657703b02bfcb6e2ba2aacc24fd615ee914425e3850"
 dependencies = [
  "quote",
  "syn",

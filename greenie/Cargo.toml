@@ -1,6 +1,6 @@
 [package]
 name = "greenie"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["playXE <adel.prokurov@protonmail.com>"]
 edition = "2018"
 repository = "https://github.com/playXE/greenie"
@@ -9,4 +9,4 @@ keywords = ["perceptron","neural-network","network","nerual","genetic"]
 license = "MIT"
 description = "Green threads & generators"
 [dependencies]
-greenie-proc = {path = "greenie-proc"}
+greenie-proc = "0.1"
