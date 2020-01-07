@@ -1,5 +1,4 @@
 use greenie::*;
-use greenie_proc::greenify;
 
 fn main() {
     let mut rt = Runtime::new(4, None);

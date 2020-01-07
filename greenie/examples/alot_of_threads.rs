@@ -1,6 +1,6 @@
 
 use greenie::*;
-use greenie_proc::*;
+
 fn main() {
     let mut rt = Runtime::new(16000, None);
     rt.init();

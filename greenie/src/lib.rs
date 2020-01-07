@@ -7,6 +7,8 @@ pub const DEFAULT_STACK_SIZE: usize = 1024 * 1024 * 2;
 // TODO: Maybe make this thing thread_local?
 static mut RUNTIME: usize = 0;
 
+pub use greenie_proc::greenify;
+
 pub struct Runtime {
     threads: Vec<Thread>,
     current: usize,
