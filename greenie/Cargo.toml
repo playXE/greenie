@@ -1,11 +1,11 @@
 [package]
 name = "greenie"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["playXE <adel.prokurov@protonmail.com>"]
 edition = "2018"
 repository = "https://github.com/playXE/greenie"
 readme = "README.md"
-keywords = ["perceptron","neural-network","network","nerual","genetic"]
+keywords = ["green-threads","green","generators","threads","parallel"]
 license = "MIT"
 description = "Green threads & generators"
 [dependencies]
