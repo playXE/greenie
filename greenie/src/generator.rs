@@ -19,11 +19,15 @@ impl Default for GeneratorState {
     }
 }
 
+use crate::ctx::*;
+use crate::ptr::*;
+use crate::scheduler::*;
+
 pub struct Generator {
     pub state: std::cell::Cell<GeneratorState>,
     pub(crate) complete: std::cell::Cell<bool>,
-    pub thread_id: usize,
-    pub to: usize,
+    pub thread: Ptr<Context>,
+    pub to: Ptr<Context>,
     pub is_join: bool,
 }
 
@@ -36,17 +40,17 @@ impl Generator {
         args: A,
     ) -> Rc<Self> {
         crate::scheduler::RUNTIME.with(|rt| {
-            let to = rt.current;
-            let thread_id = rt.get().spawn(closure, args);
-            rt.get().threads[thread_id].get().state = crate::ctx::State::Suspended;
+            let to = rt.active_ctx;
+            let thread = rt.get().spawn(closure, args).thread();
+            RUNTIME.with(|rt| rt.get().suspend(thread));
             let generator = Rc::new(Generator {
                 state: std::cell::Cell::new(GeneratorState::Ready),
-                thread_id,
+                thread,
                 to,
                 complete: std::cell::Cell::new(false),
                 is_join: false,
             });
-            rt.get().threads[thread_id].get().generator = Some(generator.clone());
+            thread.get().generator = Some(generator.clone());
             generator
         })
     }
@@ -60,18 +64,13 @@ impl Generator {
             return Err("Generator already complete");
         }
         crate::scheduler::RUNTIME.with(|rt| {
-            rt.get().threads[rt.current].get().state = crate::ctx::State::Suspended;
-            rt.get().threads[self.thread_id].get().state = crate::ctx::State::Running;
-            let old = rt.current;
-            rt.get().current = self.thread_id;
-            assert!(rt.threads[self.thread_id].generator.is_some());
-            unsafe {
-                crate::scheduler::switch_stack(
-                    &mut rt.get().threads[old].get().sp,
-                    rt.threads[self.thread_id].get().sp,
-                    rt.get().threads[self.thread_id].get(),
-                );
-            }
+            rt.get().suspend(rt.active_ctx);
+            rt.get().resume(self.thread);
+
+            //rt.get().threads[rt.current].get().state = crate::ctx::State::Suspended;
+            //rt.get().threads[self.thread_id].get().state = crate::ctx::State::Running;
+
+            yield_thread();
             let state = self.state.take();
             if let GeneratorState::Complete(_) = &state {
                 self.complete.set(true);
@@ -81,6 +80,7 @@ impl Generator {
     }
 }
 
+/// Yield generator with a value
 pub fn generator_yield<T: 'static>(val: T) -> Result<(), &'static str> {
     crate::scheduler::RUNTIME.with(|rt| rt.get().t_yield_generator(val))
 }

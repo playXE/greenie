@@ -15,6 +15,14 @@ impl<T> Ptr<T> {
     pub fn from_box(b: Box<T>) -> Self {
         Self(Box::into_raw(b))
     }
+
+    pub fn is_null(&self) -> bool {
+        self.0.is_null()
+    }
+
+    pub fn null() -> Self {
+        Self(std::ptr::null_mut())
+    }
 }
 
 use std::hash::*;
