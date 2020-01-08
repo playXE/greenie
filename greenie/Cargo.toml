@@ -10,3 +10,10 @@ license = "MIT"
 description = "Green threads & generators"
 [dependencies]
 greenie-proc = "0.1"
+libc = "0.2"
+paste = "0.1"
+[build-dependencies]
+cc = "*"
+
+[features]
+preemptive = []
