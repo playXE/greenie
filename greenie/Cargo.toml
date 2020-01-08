@@ -14,7 +14,7 @@ libc = "0.2"
 paste = "0.1"
 
 [build-dependencies]
-cc = "*"
+cc = "1"
 
 [features]
 preemptive = []
