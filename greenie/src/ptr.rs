@@ -16,6 +16,21 @@ impl<T> Ptr<T> {
         Self(Box::into_raw(b))
     }
 
+    pub fn set(&self, val: T) {
+        unsafe { self.0.write(val) };
+    }
+
+    pub fn replace(&self, val: T) -> T {
+        std::mem::replace(self.get(), val)
+    }
+
+    pub fn take(&self) -> T
+    where
+        T: Default,
+    {
+        self.replace(T::default())
+    }
+
     pub fn is_null(&self) -> bool {
         self.0.is_null()
     }

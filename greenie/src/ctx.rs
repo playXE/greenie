@@ -156,6 +156,7 @@ impl<T> JoinHandle<T> {
                 return Ok(value.downcast().unwrap());
             } else {
                 use crate::scheduler;
+
                 scheduler::RUNTIME.with(|_| {
                     while let None = self.inner.get().value {
                         //println!("yield");

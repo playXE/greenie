@@ -11,14 +11,16 @@ pub struct Scheduler {
     #[cfg(not(feature = "fifo"))]
     pub(crate) threads: Vec<Ptr<Context>>,
     pub active_ctx: Ptr<Context>,
+    pub current: usize,
     #[cfg(feature = "preemptive")]
     pub(crate) timer: i32,
-    pub current: usize,
     #[cfg(feature = "fifo")]
     pub(crate) queue: std::collections::LinkedList<Ptr<Context>>,
     #[cfg(feature = "fifo")]
     pub(crate) suspended: std::collections::HashSet<Ptr<Context>>,
 }
+
+//static mut FIXED_TIMEOUT: preemptive::itimerspec = preemptive::itimerspec::new(0, 0, 0, 100000000);
 
 impl Scheduler {
     /// Create new scheduler instance
@@ -33,12 +35,12 @@ impl Scheduler {
             })
             .collect();
         threads.append(&mut available_threads);
+
         Self {
             main_ctx: base_thread,
             #[cfg(not(feature = "fifo"))]
             threads,
-            #[cfg(feature = "preemptive")]
-            timer: 0,
+
             current: 0,
             stack_size: 1024 * 1024 * 2,
             #[cfg(feature = "fifo")]
@@ -46,10 +48,19 @@ impl Scheduler {
             #[cfg(feature = "fifo")]
             suspended: std::collections::HashSet::new(),
             active_ctx: base_thread,
+            #[cfg(feature = "preemptive")]
+            timer: 0,
         }
     }
 
     pub fn run(&mut self) -> ! {
+        #[cfg(feature = "preemptive")]
+        {
+            unsafe {
+                preemption::enable_preemption(&mut self.timer);
+                preemption::reset_timer();
+            }
+        }
         while self.yield_() {}
         std::process::exit(0);
     }
@@ -200,14 +211,25 @@ impl Scheduler {
         } else {
             unreachable!()
         };
-        self.active_ctx.get().state = State::Suspended;
+
+        /*self.active_ctx.get().state = State::Suspended;
         to.get().state = State::Running;
         let old = self.active_ctx.id;
         self.active_ctx = to;
         self.current = to.id;
         unsafe {
             switch_stack(&mut self.threads[old].get().sp, to.get().sp, to.get());
+        }*/
+        self.threads[self.current].get().state = State::Ready;
+        //self.threads[self.current].get().generator = None;
+        to.get().state = State::Running;
+        let old_pos = self.current;
+        self.current = to.id;
+        self.active_ctx = to;
+        unsafe {
+            switch_stack(&mut self.threads[old_pos].get().sp, to.sp, to.get());
         }
+        //self.yield_();
         Ok(())
     }
     #[cfg(feature = "fifo")]
@@ -320,7 +342,10 @@ impl Scheduler {
         Ok(())
     }
     /// Yield current thread
+
     pub fn yield_(&mut self) -> bool {
+        #[cfg(feature = "preemptive")]
+        {}
         self.context_switch()
     }
     /// Initialize thread local Scheduler instance
@@ -332,12 +357,16 @@ impl Scheduler {
 }
 
 thread_local! {
-    pub static RUNTIME: Ptr<Scheduler> = Ptr::new(Scheduler::new(1024));
+    pub static RUNTIME: Ptr<Scheduler> = {
+
+        Ptr::new(Scheduler::new(1024))
+    };
+
 }
 /// Yields thread
 ///
 /// This is used when the programmer knows that the thread will have nothing to do for some time, and thus avoid wasting computing time.
-pub fn yield_thread() {
+pub extern "C" fn yield_thread() {
     RUNTIME.with(|rt| {
         rt.get().yield_();
     })
@@ -359,4 +388,66 @@ pub fn spawn_greenie<F: 'static, A: 'static + ApplyTo<F> + Clone>(
     args: A,
 ) -> JoinHandle<A::Result> {
     RUNTIME.with(|rt| rt.get().spawn(f, args))
+}
+
+#[cfg(feature = "preemptive")]
+mod preemption {
+    pub type timer_t = i32;
+    extern "C" {
+        fn __libc_current_sigrtmin() -> c_int;
+        pub fn timer_create(
+            clock_id: clockid_t,
+            evp: *mut sigevent,
+            timerid: *mut timer_t,
+        ) -> c_int;
+        pub fn timer_settime(
+            timerid: timer_t,
+            flags: c_int,
+            value: *const libc::itimerspec,
+            ovalue: *mut libc::itimerspec,
+        ) -> c_int;
+        pub fn timer_delete(timerid: timer_t) -> c_int;
+    }
+
+    use libc::{c_int, clockid_t, sigaction, sigevent};
+    static mut TS: libc::itimerspec = libc::itimerspec {
+        it_interval: libc::timespec {
+            tv_nsec: 0,
+            tv_sec: 0,
+        },
+        it_value: libc::timespec {
+            tv_sec: 0,
+            tv_nsec: 100000000,
+        },
+    };
+    pub unsafe fn reset_timer() {
+        super::RUNTIME.with(|rt| {
+            unimplemented!()
+            //timer_settime(rt.timer, 0, &TS, std::ptr::null_mut());
+        });
+    }
+
+    pub unsafe fn enable_preemption(id: &mut i32) {
+        use super::*;
+
+        let mut sa: sigaction = std::mem::zeroed();
+        sa.sa_flags = libc::SA_SIGINFO;
+        sa.sa_sigaction = preemptive_sched as usize;
+        libc::sigemptyset(&mut sa.sa_mask);
+
+        if libc::sigaction(__libc_current_sigrtmin(), &mut sa, std::ptr::null_mut()) == -1 {
+            eprintln!("failed to setup signal handling");
+            std::process::exit(1);
+        }
+        let mut te: sigevent = std::mem::zeroed();
+        te.sigev_notify = libc::SIGEV_SIGNAL;
+        te.sigev_signo = __libc_current_sigrtmin();
+        te.sigev_value.sival_ptr = id as *mut i32 as *mut _;
+
+        println!("{}", timer_create(libc::CLOCK_REALTIME, &mut te, id));
+    }
+
+    unsafe fn preemptive_sched(/*_: i32, _: *mut u8, _: *mut u8*/) {
+        println!("sched");
+    }
 }

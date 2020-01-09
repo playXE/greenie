@@ -12,7 +12,9 @@ description = "Green threads & generators"
 greenie-proc = "0.1"
 libc = "0.2"
 paste = "0.1"
-
+hjul = "0.2"
+lazy_static = "1.4"
+parking_lot = "0.10"
 [build-dependencies]
 cc = "1"
 

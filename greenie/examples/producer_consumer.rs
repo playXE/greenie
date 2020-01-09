@@ -1,21 +1,3 @@
-# greenie
-Simple green threads in Rust programming language.
-
-# Features
-- Generators in stable Rust!
-- Synchronization primitives: `Mutex`,`Condvar` others will be implemented later ( see TODO ).
-- Fast.
-- Semi-automatic scheduling using `greenify` macro that inserts yield points in your functions.
-
-# TODO
-- Preemptive scheduling
-- Implement FIFO schedulign algorithm
-- Implement `RwLock`,`Barrier`.
-
-
-# Example
-Condvar and Mutex example:
-```rust
 use greenie::*;
 use scheduler::*;
 fn main() {
@@ -75,31 +57,3 @@ fn green_main() {
     producer.join().unwrap();
     consumer.join().unwrap();
 }
-```
-
-Generators example: 
-```rust
-use greenie::*;
-use generator::*;
-use scheduling::*;
-
-fn main() {
-    let x = 42;
-    let y = "Hello!";
-    let generator = Generator::spawn(|x,y| {
-        generator_yield(x);
-        generator_yield(y);
-
-        generator_return("Complete");
-    },(x,y));
-
-    let result = iterate_generator! {
-        for (x in generator) {
-
-        }
-    };
-
-    println!("{}",result.downcast::<&'static str>().unwrap());
-}
-
-```

@@ -1,6 +1,5 @@
 use generator::*;
 use greenie::*;
-
 fn main() {
     let x = 42;
     let y = "Hello!";
