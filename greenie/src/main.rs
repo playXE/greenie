@@ -9,13 +9,14 @@ fn main() {
             generator_yield(x).unwrap();
             generator_yield(y).unwrap();
 
-            generator_return("Complete").unwrap();
+            return "Complete";
         },
         (x, y),
     );
 
     let result = iterate_generator! {
         for (x in generator) {
+
             if x.is::<i32>() {
                 println!("{}",x.downcast::<i32>().unwrap());
             } else if x.is::<&'static str> () {

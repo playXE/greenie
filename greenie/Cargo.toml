@@ -18,6 +18,3 @@ parking_lot = "0.10"
 [build-dependencies]
 cc = "1"
 
-[features]
-preemptive = []
-fifo = []

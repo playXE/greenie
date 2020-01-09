@@ -5,7 +5,7 @@ pub mod ctx;
 pub mod generator;
 pub mod ptr;
 pub mod scheduler;
-pub use generator::{generator_return, generator_yield};
+pub use generator::generator_yield;
 pub use scheduler::{spawn_greenie, yield_thread};
 
 pub fn thread_sleep(duration: std::time::Duration) {

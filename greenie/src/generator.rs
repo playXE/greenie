@@ -41,8 +41,8 @@ impl Generator {
     ) -> Rc<Self> {
         crate::scheduler::RUNTIME.with(|rt| {
             let to = rt.active_ctx;
-            let thread = rt.get().spawn(closure, args).thread();
-            RUNTIME.with(|rt| rt.get().suspend(thread));
+            let thread = rt.get().spawn_not_schelude(closure, args).thread();
+            //RUNTIME.with(|rt| rt.get().suspend(thread));
             let generator = Rc::new(Generator {
                 state: Ptr::new(GeneratorState::Ready),
                 thread,
@@ -63,14 +63,20 @@ impl Generator {
         if self.complete.get() {
             return Err("Generator already complete");
         }
-        self.thread.get().state = State::Ready;
-        while let GeneratorState::Ready = &*self.state.get() {
-            yield_thread();
-        }
+        RUNTIME.with(|rt| {
+            rt.get().resume(self.thread);
+            rt.get().switch_without_current();
+        });
+        //self.thread.get().state = State::Ready;
+        /*        while let GeneratorState::Ready = &*self.state.get() {
+                    yield_thread();
+                }
+        */
         if let GeneratorState::Complete(_) = &self.state.get() {
             self.complete.set(true);
         }
         let state = self.state.take();
+        //RUNTIME.with(|rt| rt.get().suspend(self.thread));
         Ok(state)
     }
 }
@@ -78,10 +84,6 @@ impl Generator {
 /// Yield generator with a value
 pub fn generator_yield<T: 'static>(val: T) -> Result<(), &'static str> {
     crate::scheduler::RUNTIME.with(|rt| rt.get().t_yield_generator(val))
-}
-/// Complete generator with value
-pub fn generator_return<T: 'static>(val: T) -> Result<(), &'static str> {
-    crate::scheduler::RUNTIME.with(|rt| rt.get().t_return_generator(val))
 }
 
 //// Iterates through generator

@@ -29,11 +29,25 @@ impl Context {
     }
 
     pub(crate) fn apply<F: 'static, A: 'static + ApplyTo<F> + Clone>(&mut self, f: F, args: A) {
-        let handle = self.handle;
         self.fun = Box::new(move || {
             let result: A::Result = args.clone().apply_to(&f);
-
-            if !handle.is_null() {
+            let (generator, handle) = crate::scheduler::RUNTIME.with(|rt| {
+                (
+                    rt.active_ctx.generator.clone(),
+                    rt.active_ctx.handle.clone(),
+                )
+            });
+            if generator.is_some() {
+                let gen = generator.as_ref().map(|x| x.clone()).unwrap();
+                gen.state
+                    .set(crate::generator::GeneratorState::Complete(Box::new(result)));
+                crate::scheduler::RUNTIME.with(|rt| {
+                    rt.get().resume(gen.to);
+                });
+            } else if !handle.is_null() {
+                crate::scheduler::RUNTIME.with(|rt| {
+                    rt.get().resume(handle.get().wait);
+                });
                 handle.get().value = Some(Box::new(result));
             }
         })
@@ -41,8 +55,10 @@ impl Context {
 
     pub fn exec(&mut self) {
         (self.fun)();
-        self.state = State::Available;
-        crate::scheduler::yield_thread();
+
+        crate::scheduler::RUNTIME.with(|rt| {
+            rt.get().switch_without_current();
+        })
     }
 }
 
@@ -129,6 +145,7 @@ use std::rc::Rc;
 pub(crate) struct JoinHandleInner {
     pub value: Option<Box<dyn std::any::Any>>,
     pub thread: Ptr<Context>,
+    pub wait: Ptr<Context>,
 }
 /// An owned permission to join on a thread (block on its termination).
 ///
@@ -157,14 +174,25 @@ impl<T> JoinHandle<T> {
             } else {
                 use crate::scheduler;
 
-                scheduler::RUNTIME.with(|_| {
-                    while let None = self.inner.get().value {
-                        //println!("yield");
-                        scheduler::yield_thread();
-                    }
+                scheduler::RUNTIME.with(|rt| {
+                    rt.get().switch_without_current();
                     Ok(self.inner.0.read().value.unwrap().downcast().unwrap())
                 })
             }
         }
+    }
+}
+
+use std::hash::{Hash, Hasher};
+
+impl Hash for Context {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
+    }
+}
+
+impl PartialEq for Context {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
     }
 }
