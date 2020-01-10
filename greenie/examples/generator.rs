@@ -8,7 +8,7 @@ fn main() {
             generator_yield(x).unwrap();
             generator_yield(y).unwrap();
 
-            generator_return("Complete").unwrap();
+            return "Complete";
         },
         (x, y),
     );

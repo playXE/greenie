@@ -42,7 +42,7 @@ impl Condvar {
         m.lock();
     }
     /// Equivalent to
-    /// ```
+    /// ```c
     /// while !pred() {
     ///       self.wait_for_mutex(m);
     /// }
@@ -58,20 +58,23 @@ impl Condvar {
 
         while let Some(ctx) = self.wait_queue.get().pop_front() {
             let expected = self as *const Condvar as *mut i8;
-            if ctx.get().twstatus.compare_exchange(
+            let result = ctx.get().twstatus.compare_exchange(
                 expected,
                 -1i8 as *mut i8,
                 std::sync::atomic::Ordering::Acquire,
                 std::sync::atomic::Ordering::Relaxed,
-            ) == Ok(expected)
-            {
-                ctx.get().state = State::Ready;
-                yield_thread();
-                break;
-            } else if expected.is_null() {
-                ctx.get().state = State::Ready;
-                yield_thread();
-                break;
+            );
+            match result {
+                Ok(_) => {
+                    yield_thread();
+                    break;
+                }
+                Err(x) => {
+                    if x.is_null() {
+                        yield_thread();
+                    }
+                    break;
+                }
             }
         }
     }
@@ -81,18 +84,23 @@ impl Condvar {
 
         while let Some(ctx) = self.wait_queue.get().pop_front() {
             let expected = self as *const Condvar as *mut i8;
-            if ctx.get().twstatus.compare_exchange(
+            let result = ctx.get().twstatus.compare_exchange(
                 expected,
                 -1i8 as *mut i8,
                 std::sync::atomic::Ordering::Acquire,
                 std::sync::atomic::Ordering::Relaxed,
-            ) == Ok(expected)
-            {
-                ctx.get().state = State::Ready;
-                yield_thread();
-            } else if expected.is_null() {
-                ctx.get().state = State::Ready;
-                yield_thread();
+            );
+            match result {
+                Ok(_) => {
+                    crate::yield_thread();
+                    break;
+                }
+                Err(x) => {
+                    if x.is_null() {
+                        crate::yield_thread();
+                        break;
+                    }
+                }
             }
         }
     }

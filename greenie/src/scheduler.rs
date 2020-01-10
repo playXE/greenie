@@ -31,7 +31,7 @@ impl Scheduler {
         }
     }
 
-    pub fn run(&mut self) -> ! {
+    pub fn run(&mut self) {
         while self.yield_() {}
         std::process::exit(0);
     }
@@ -62,8 +62,7 @@ impl Scheduler {
             if !context.is_null() {
                 // TODO: Program segfaults and I currently have no idea where it tries to access
                 // terminated thread, need to debug it.
-                //std::intrinsics::drop_in_place(context.0);
-
+                //let _ = unsafe { Box::from_raw(context.0) };
                 // Clear stack, should be enough for now ( will free up to 256kb of memory ).
                 context.get().stack.clear();
             }
@@ -112,9 +111,7 @@ impl Scheduler {
             available.get().sp =
                 init_stack(available.get().bp.offset(size as isize - 128), ctx_function);
         }
-        available.get().state = State::Ready;
         available.get().scheduler = Ptr(self as *mut _);
-        //self.queue.push_back(available);
         ThreadHandle {
             marker: std::marker::PhantomData,
             inner: inner_joinhandle,
@@ -126,20 +123,6 @@ impl Scheduler {
         f: F,
         args: A,
     ) -> ThreadHandle<A::Result> {
-        /*let val = self
-            .threads
-            .iter_mut()
-            .enumerate()
-            .find(|(_, t)| t.state == State::Available);
-        let (_i_, available) = if let Some((i, available)) = val {
-            (i, *available)
-        } else {
-            let thread = Ptr::new(Context::new(1024 * 1024 * 2));
-            thread.get().id = self.threads.len();
-            self.threads.push(thread);
-
-            (thread.id, thread)
-        };*/
         let available = Ptr::new(Context::new(1024 * 1024 * 2));
         let size = available.stack.len();
         let s_ptr = available.get().stack.as_mut_ptr();
@@ -155,7 +138,6 @@ impl Scheduler {
             available.get().sp =
                 init_stack(available.get().bp.offset(size as isize - 128), ctx_function);
         }
-        available.get().state = State::Ready;
         available.get().scheduler = Ptr(self as *mut _);
         self.queue.push_back(available);
         ThreadHandle {
@@ -206,7 +188,6 @@ impl Scheduler {
     pub fn suspend_thread(&mut self, thread: Ptr<Context>) {
         if thread.ready_hook.is_linked() {
             unsafe {
-                println!("unlink");
                 thread.ready_hook.force_unlink();
             }
         }

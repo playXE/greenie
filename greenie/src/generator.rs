@@ -8,7 +8,7 @@ pub enum GeneratorState {
     /// This state indicates that a generator has been suspended. The value provided in this variant corresponds to the expression passed to yield and allows generators to provide a value each time they yield.
     Yielded(Box<dyn std::any::Any>),
     /// The generator completed with a return value.
-
+    ///
     /// This state indicates that a generator has finished execution with the provided value. Once a generator has returned Complete it is considered a programmer error to call resume again.
     Complete(Box<dyn std::any::Any>),
 }
@@ -67,16 +67,10 @@ impl Generator {
             rt.get().resume(self.thread);
             rt.get().switch_without_current();
         });
-        //self.thread.get().state = State::Ready;
-        /*        while let GeneratorState::Ready = &*self.state.get() {
-                    yield_thread();
-                }
-        */
         if let GeneratorState::Complete(_) = &self.state.get() {
             self.complete.set(true);
         }
         let state = self.state.take();
-        //RUNTIME.with(|rt| rt.get().suspend(self.thread));
         Ok(state)
     }
 }

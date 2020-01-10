@@ -16,90 +16,39 @@ Simple green threads in Rust programming language.
 # Example
 Condvar and Mutex example:
 ```rust
-use greenie::*;
-use scheduler::*;
+use greenie::channel::*;
+
+use greenie::{greeny_main, Fiber};
+#[greeny_main]
 fn main() {
-    RUNTIME.with(|rt| {
-        rt.get().spawn(green_main, ());
-        rt.get().run();
-    })
-}
+    let chan_1 = Channel::<&'static str>::new(2);
+    let chan_2 = Channel::<&'static str>::new(2);
 
-use common::{condvar::*, Mutex};
-
-fn green_main() {
-    let (m, cv) = (Mutex::new(vec![]), Condvar::new());
-    let stopped = ptr::Ptr::new(false);
-    let producer = spawn_greenie(
-        |mtx, cvar, stopped| {
-            let mut count = 10;
-            while count != 0 {
-                yield_thread();
-                let mut queue = mtx.lock();
-                count -= 1;
-                queue.push(count);
-            }
-
-            let lock = mtx.lock();
-
-            println!("Producer is done!");
-
-            *stopped.get() = true;
-            drop(lock);
-            cvar.notify_one();
+    let fping = Fiber::new_capture(
+        |chan_1, chan_2| {
+            chan_1.push("ping");
+            println!("{}", chan_2.pop().unwrap());
+            chan_1.push("ping");
+            println!("{}", chan_2.pop().unwrap());
+            chan_1.push("ping");
+            println!("{}", chan_2.pop().unwrap());
         },
-        (m.clone(), cv.clone(), stopped),
+        (chan_1.clone(), chan_2.clone()),
+    );
+    let fpong = Fiber::new_capture(
+        |chan_1, chan_2| {
+            chan_2.push("pong");
+            println!("{}", chan_1.pop().unwrap());
+            chan_2.push("pong");
+            println!("{}", chan_1.pop().unwrap());
+            chan_2.push("pong");
+            println!("{}", chan_1.pop().unwrap());
+        },
+        (chan_1.clone(), chan_2.clone()),
     );
 
-    let consumer = spawn_greenie(
-        |mtx, cvar, stopped| loop {
-            yield_thread();
-            let mut queue = mtx.lock();
-            cvar.wait_pred(&mtx.mutex, || {
-                return *stopped.get() || !queue.is_empty();
-            });
-
-            while !queue.is_empty() {
-                let val = queue.pop().unwrap();
-                println!("Consumer poped: {}", val);
-            }
-
-            if *stopped.get() {
-                println!("Consumer is done");
-                break;
-            }
-        },
-        (m.clone(), cv.clone(), stopped),
-    );
-
-    producer.join().unwrap();
-    consumer.join().unwrap();
+    fpong.start().unwrap();
+    fping.start().unwrap();
 }
 ```
-
-Generators example: 
-```rust
-use greenie::*;
-use generator::*;
-use scheduling::*;
-
-fn main() {
-    let x = 42;
-    let y = "Hello!";
-    let generator = Generator::spawn(|x,y| {
-        generator_yield(x);
-        generator_yield(y);
-
-        generator_return("Complete");
-    },(x,y));
-
-    let result = iterate_generator! {
-        for (x in generator) {
-
-        }
-    };
-
-    println!("{}",result.downcast::<&'static str>().unwrap());
-}
-
-```
+For more examples read [documentation](https://docs.rs/greenie/) or `examples/`

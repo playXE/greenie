@@ -6,7 +6,7 @@ intrusive_adapter!(pub ReadyAdapter = Ptr<Context> : Context {ready_hook: intrus
 pub struct Context {
     pub id: usize,
     pub(crate) stack: Vec<u8>,
-    pub(crate) state: State,
+
     pub(crate) generator: Option<Rc<crate::generator::Generator>>,
     pub sp: *mut u8,
     pub bp: *mut u8,
@@ -24,7 +24,6 @@ impl Context {
         Self {
             id: 0,
             stack: vec![0_u8; stack],
-            state: State::Available,
             generator: None,
             fun: Box::new(move || {}),
             sp: std::ptr::null_mut(),
@@ -88,15 +87,6 @@ impl Context {
         self.wait_queue.push_back(active_ctx);
         active_ctx.scheduler.get().suspend();
     }
-}
-
-#[derive(PartialEq, Eq, Debug)]
-pub enum State {
-    Available,
-    Running,
-    Ready,
-    Suspended,
-    Done,
 }
 
 pub(crate) extern "C" fn ctx_function(context: *mut Context) {
