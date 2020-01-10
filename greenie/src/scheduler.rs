@@ -10,7 +10,7 @@ pub struct Scheduler {
     pub(crate) main_ctx: Ptr<Context>,
     pub active_ctx: Ptr<Context>,
     pub current: usize,
-    queue: std::collections::LinkedList<Ptr<Context>>,
+    queue: intrusive_collections::LinkedList<ReadyAdapter>,
     pub(crate) terminated_queue: std::collections::LinkedList<Ptr<Context>>,
 }
 
@@ -25,7 +25,7 @@ impl Scheduler {
             main_ctx: base_thread,
             current: 0,
             stack_size: 1024 * 1024 * 2,
-            queue: std::collections::LinkedList::new(),
+            queue: intrusive_collections::LinkedList::new(ReadyAdapter::new()),
             terminated_queue: std::collections::LinkedList::new(),
             active_ctx: base_thread,
         }
@@ -42,7 +42,7 @@ impl Scheduler {
             return false;
         }
 
-        let next = *self.queue.front().unwrap();
+        let next = self.queue.front().clone_pointer().unwrap();
         let prev = self.active_ctx;
         self.queue.pop_front();
         if next == prev {
@@ -76,7 +76,7 @@ impl Scheduler {
         }
 
         self.cleanup();
-        let next = *self.queue.front().unwrap();
+        let next = self.queue.front().clone_pointer().unwrap();
         let prev = self.active_ctx;
         self.queue.pop_front();
         if next == prev {
@@ -92,11 +92,11 @@ impl Scheduler {
         true
     }
 
-    pub fn spawn_not_schelude<F: 'static, A: 'static + ApplyTo<F> + Clone>(
+    pub fn spawn_not_schedule<F: 'static, A: 'static + ApplyTo<F> + Clone>(
         &mut self,
         f: F,
         args: A,
-    ) -> JoinHandle<A::Result> {
+    ) -> ThreadHandle<A::Result> {
         let available = Ptr::new(Context::new(1024 * 1024 * 2));
         let size = available.stack.len();
         let s_ptr = available.get().stack.as_mut_ptr();
@@ -115,7 +115,7 @@ impl Scheduler {
         available.get().state = State::Ready;
         available.get().scheduler = Ptr(self as *mut _);
         //self.queue.push_back(available);
-        JoinHandle {
+        ThreadHandle {
             marker: std::marker::PhantomData,
             inner: inner_joinhandle,
         }
@@ -125,7 +125,7 @@ impl Scheduler {
         &mut self,
         f: F,
         args: A,
-    ) -> JoinHandle<A::Result> {
+    ) -> ThreadHandle<A::Result> {
         /*let val = self
             .threads
             .iter_mut()
@@ -158,7 +158,7 @@ impl Scheduler {
         available.get().state = State::Ready;
         available.get().scheduler = Ptr(self as *mut _);
         self.queue.push_back(available);
-        JoinHandle {
+        ThreadHandle {
             marker: std::marker::PhantomData,
             inner: inner_joinhandle,
         }
@@ -194,8 +194,23 @@ impl Scheduler {
         self.queue.push_back(t);
     }
 
-    pub fn suspend(&mut self, _: Ptr<Context>) {
+    pub fn suspend(&mut self) {
+        if Context::active().ready_hook.is_linked() {
+            unsafe {
+                Context::active().ready_hook.force_unlink();
+            }
+        }
         self.switch_without_current();
+    }
+
+    pub fn suspend_thread(&mut self, thread: Ptr<Context>) {
+        if thread.ready_hook.is_linked() {
+            unsafe {
+                println!("unlink");
+                thread.ready_hook.force_unlink();
+            }
+        }
+        self.yield_();
     }
 
     /// Yield current thread
@@ -242,6 +257,6 @@ pub extern "C" fn yield_thread() {
 pub fn spawn_greenie<F: 'static, A: 'static + ApplyTo<F> + Clone>(
     f: F,
     args: A,
-) -> JoinHandle<A::Result> {
+) -> ThreadHandle<A::Result> {
     RUNTIME.with(|rt| rt.get().spawn(f, args))
 }

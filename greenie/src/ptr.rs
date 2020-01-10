@@ -69,3 +69,15 @@ impl<T> std::ops::Deref for Ptr<T> {
         self.get()
     }
 }
+
+use intrusive_collections::IntrusivePointer;
+
+unsafe impl<T> IntrusivePointer<T> for Ptr<T> {
+    unsafe fn from_raw(x: *const T) -> Self {
+        Self(x as *mut _)
+    }
+
+    fn into_raw(self) -> *const T {
+        self.0
+    }
+}

@@ -41,8 +41,8 @@ impl Generator {
     ) -> Rc<Self> {
         crate::scheduler::RUNTIME.with(|rt| {
             let to = rt.active_ctx;
-            let thread = rt.get().spawn_not_schelude(closure, args).thread();
-            //RUNTIME.with(|rt| rt.get().suspend(thread));
+            let thread = rt.get().spawn_not_schedule(closure, args).thread();
+
             let generator = Rc::new(Generator {
                 state: Ptr::new(GeneratorState::Ready),
                 thread,

@@ -56,8 +56,8 @@ impl Mutex {
             }
             inner.wait_queue.push_back(active_ctx);
             RUNTIME.with(|rt| {
-                rt.get().suspend(rt.active_ctx);
-                //rt.get().yield_();
+                rt.get().suspend_thread(rt.active_ctx);
+                rt.get().yield_();
             });
         }
     }

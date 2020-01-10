@@ -1,5 +1,7 @@
 use std::sync::atomic::AtomicPtr;
 
+intrusive_adapter!(pub ReadyAdapter = Ptr<Context> : Context {ready_hook: intrusive_collections::LinkedListLink});
+
 #[repr(C)]
 pub struct Context {
     pub id: usize,
@@ -12,7 +14,9 @@ pub struct Context {
     pub(crate) twstatus: AtomicPtr<i8>,
     pub(crate) wait_queue: std::collections::LinkedList<Ptr<Context>>,
     pub scheduler: Ptr<crate::scheduler::Scheduler>,
+    pub terminated: bool,
     fun: Box<dyn Fn()>,
+    pub(crate) ready_hook: intrusive_collections::LinkedListLink,
 }
 
 impl Context {
@@ -29,6 +33,8 @@ impl Context {
             twstatus: AtomicPtr::new(std::ptr::null_mut()),
             wait_queue: std::collections::LinkedList::new(),
             scheduler: Ptr::null(),
+            terminated: false,
+            ready_hook: intrusive_collections::LinkedListLink::new(),
         }
     }
 
@@ -53,9 +59,6 @@ impl Context {
                     rt.get().resume(gen.to);
                 });
             } else if !handle.is_null() {
-                crate::scheduler::RUNTIME.with(|rt| {
-                    rt.get().resume(handle.get().wait);
-                });
                 handle.get().value = Some(Box::new(result));
             }
         })
@@ -66,6 +69,7 @@ impl Context {
         while let Some(context) = self.wait_queue.pop_front() {
             self.scheduler.get().resume(context);
         }
+        self.terminated = true;
         crate::scheduler::RUNTIME.with(|rt| {
             rt.get().terminated_queue.push_back(Context::active());
             rt.get().switch_without_current();
@@ -82,7 +86,7 @@ impl Context {
             panic!();
         }
         self.wait_queue.push_back(active_ctx);
-        active_ctx.scheduler.get().suspend(active_ctx);
+        active_ctx.scheduler.get().suspend();
     }
 }
 
@@ -174,12 +178,12 @@ pub(crate) struct JoinHandleInner {
 /// An owned permission to join on a thread (block on its termination).
 ///
 ///A JoinHandle detaches the associated thread when it is dropped, which means that there is no longer any handle to thread and no way to join on it.
-pub struct JoinHandle<T> {
+pub struct ThreadHandle<T> {
     pub(crate) marker: std::marker::PhantomData<T>,
     pub(crate) inner: crate::ptr::Ptr<JoinHandleInner>,
 }
 
-impl<T> JoinHandle<T> {
+impl<T> ThreadHandle<T> {
     pub fn thread_id(&self) -> usize {
         self.inner.get().thread.id
     }
@@ -188,29 +192,18 @@ impl<T> JoinHandle<T> {
         self.inner.thread
     }
     /// Waits for the associated thread to finish.
-    pub fn join(self) -> Result<Box<T>, &'static str>
+    pub fn join(self) -> Result<T, &'static str>
     where
         T: 'static,
     {
         unsafe {
             if let Some(value) = self.inner.0.read().value {
-                return Ok(value.downcast().unwrap());
+                Ok(*(value.downcast().unwrap()))
             } else {
-                use crate::scheduler;
-
-                scheduler::RUNTIME.with(|rt| {
-                    rt.get().switch_without_current();
-                    Ok(self.inner.0.read().value.unwrap().downcast().unwrap())
-                })
+                self.inner.thread.get().join();
+                Ok(*self.inner.0.read().value.unwrap().downcast().unwrap())
             }
         }
-        /*
-        if let Some(value) = self.inner.get().value.take() {
-            return Ok(value.downcast().unwrap());
-        } else {
-            self.inner.thread.get().join();
-            unsafe { Ok(self.inner.0.read().value.unwrap().downcast().unwrap()) }
-        }*/
     }
 }
 

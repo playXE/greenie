@@ -1,5 +1,8 @@
 #![allow(dead_code, improper_ctypes)]
 
+#[macro_use]
+extern crate intrusive_collections;
+
 pub mod common;
 pub mod ctx;
 pub mod fiber;
