@@ -9,7 +9,7 @@ keywords = ["green-threads","green","generators","threads","parallel"]
 license = "MIT"
 description = "Green threads & generators"
 [dependencies]
-greenie-proc = "0.1"
+greenie-proc = "0.2"
 libc = "0.2"
 paste = "0.1"
 hjul = "0.2"
