@@ -2,6 +2,7 @@
 
 pub mod common;
 pub mod ctx;
+pub mod fiber;
 pub mod generator;
 pub mod ptr;
 pub mod scheduler;

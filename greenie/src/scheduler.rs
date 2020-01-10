@@ -11,6 +11,7 @@ pub struct Scheduler {
     pub active_ctx: Ptr<Context>,
     pub current: usize,
     queue: std::collections::LinkedList<Ptr<Context>>,
+    pub(crate) terminated_queue: std::collections::LinkedList<Ptr<Context>>,
 }
 
 //static mut FIXED_TIMEOUT: preemptive::itimerspec = preemptive::itimerspec::new(0, 0, 0, 100000000);
@@ -25,6 +26,7 @@ impl Scheduler {
             current: 0,
             stack_size: 1024 * 1024 * 2,
             queue: std::collections::LinkedList::new(),
+            terminated_queue: std::collections::LinkedList::new(),
             active_ctx: base_thread,
         }
     }
@@ -35,33 +37,7 @@ impl Scheduler {
     }
 
     pub fn context_switch(&mut self) -> bool {
-        /*let mut pos = self.current;
-        while self.threads[pos].get().state != State::Ready {
-            pos += 1;
-            if pos == self.threads.len() {
-                pos = 0;
-            }
-
-            if pos == self.current {
-                return false;
-            }
-        }
-
-        if self.threads[self.current].get().state != State::Available {
-            self.threads[self.current].get().state = State::Ready;
-        }
-
-        self.threads[pos].get().state = State::Running;
-        let old_pos = self.current;
-        self.current = pos;
-        self.active_ctx = self.threads[self.current];
-        unsafe {
-            switch_stack(
-                &mut self.threads[old_pos].get().sp,
-                self.threads[self.current].get().sp,
-                self.threads[self.current].get(),
-            );
-        }*/
+        self.cleanup();
         if self.queue.is_empty() {
             return false;
         }
@@ -81,12 +57,25 @@ impl Scheduler {
 
         true
     }
+    fn cleanup(&mut self) {
+        while let Some(context) = self.terminated_queue.pop_front() {
+            if !context.is_null() {
+                // TODO: Program segfaults and I currently have no idea where it tries to access
+                // terminated thread, need to debug it.
+                //std::intrinsics::drop_in_place(context.0);
+
+                // Clear stack, should be enough for now ( will free up to 256kb of memory ).
+                context.get().stack.clear();
+            }
+        }
+    }
+
     pub fn switch_without_current(&mut self) -> bool {
         if self.queue.is_empty() {
-            println!("empty");
             return false;
         }
 
+        self.cleanup();
         let next = *self.queue.front().unwrap();
         let prev = self.active_ctx;
         self.queue.pop_front();
@@ -108,20 +97,6 @@ impl Scheduler {
         f: F,
         args: A,
     ) -> JoinHandle<A::Result> {
-        /*let val = self
-            .threads
-            .iter_mut()
-            .enumerate()
-            .find(|(_, t)| t.state == State::Available);
-        let (_i_, available) = if let Some((i, available)) = val {
-            (i, *available)
-        } else {
-            let thread = Ptr::new(Context::new(1024 * 1024 * 2));
-            thread.get().id = self.threads.len();
-            self.threads.push(thread);
-
-            (thread.id, thread)
-        };*/
         let available = Ptr::new(Context::new(1024 * 1024 * 2));
         let size = available.stack.len();
         let s_ptr = available.get().stack.as_mut_ptr();
@@ -138,6 +113,7 @@ impl Scheduler {
                 init_stack(available.get().bp.offset(size as isize - 128), ctx_function);
         }
         available.get().state = State::Ready;
+        available.get().scheduler = Ptr(self as *mut _);
         //self.queue.push_back(available);
         JoinHandle {
             marker: std::marker::PhantomData,
@@ -180,6 +156,7 @@ impl Scheduler {
                 init_stack(available.get().bp.offset(size as isize - 128), ctx_function);
         }
         available.get().state = State::Ready;
+        available.get().scheduler = Ptr(self as *mut _);
         self.queue.push_back(available);
         JoinHandle {
             marker: std::marker::PhantomData,
@@ -207,23 +184,6 @@ impl Scheduler {
             unreachable!()
         };
 
-        /*self.active_ctx.get().state = State::Suspended;
-        to.get().state = State::Running;
-        let old = self.active_ctx.id;
-        self.active_ctx = to;
-        self.current = to.id;
-        unsafe {
-            switch_stack(&mut self.threads[old].get().sp, to.get().sp, to.get());
-        }*/
-        /*self.threads[self.current].get().state = State::Ready;
-        //self.threads[self.current].get().generator = None;
-        to.get().state = State::Running;
-        let old_pos = self.current;
-        self.current = to.id;
-        self.active_ctx = to;
-        unsafe {
-            switch_stack(&mut self.threads[old_pos].get().sp, to.sp, to.get());
-        }*/
         self.resume(to);
         self.switch_without_current();
 
@@ -231,23 +191,11 @@ impl Scheduler {
     }
 
     pub fn resume(&mut self, t: Ptr<Context>) {
-        /*if t.id == self.current {
-            // do nothing
-        } else {
-            self.threads[t.id].get().state = State::Ready;
-        }*/
-
         self.queue.push_back(t);
     }
 
     pub fn suspend(&mut self, _: Ptr<Context>) {
-        /*if t.id == self.current {
-            self.threads[t.id].get().state = State::Suspended;
-            self.yield_();
-        } else {
-            self.threads[t.id].get().state = State::Suspended;
-        }*/
-        self.yield_();
+        self.switch_without_current();
     }
 
     /// Yield current thread
@@ -279,6 +227,7 @@ pub extern "C" fn yield_thread() {
     })
 }
 /// Spawns a new thread
+///
 /// Currently there are no way to specialize stack size for each thread.
 ///
 /// # Example

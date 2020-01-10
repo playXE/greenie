@@ -10,6 +10,8 @@ pub struct Context {
     pub bp: *mut u8,
     pub(crate) handle: crate::ptr::Ptr<JoinHandleInner>,
     pub(crate) twstatus: AtomicPtr<i8>,
+    pub(crate) wait_queue: std::collections::LinkedList<Ptr<Context>>,
+    pub scheduler: Ptr<crate::scheduler::Scheduler>,
     fun: Box<dyn Fn()>,
 }
 
@@ -25,7 +27,13 @@ impl Context {
             bp: std::ptr::null_mut(),
             handle: crate::ptr::Ptr::null(),
             twstatus: AtomicPtr::new(std::ptr::null_mut()),
+            wait_queue: std::collections::LinkedList::new(),
+            scheduler: Ptr::null(),
         }
+    }
+
+    pub fn resume(this: Ptr<Context>) {
+        this.scheduler.get().resume(this);
     }
 
     pub(crate) fn apply<F: 'static, A: 'static + ApplyTo<F> + Clone>(&mut self, f: F, args: A) {
@@ -55,10 +63,26 @@ impl Context {
 
     pub fn exec(&mut self) {
         (self.fun)();
-
+        while let Some(context) = self.wait_queue.pop_front() {
+            self.scheduler.get().resume(context);
+        }
         crate::scheduler::RUNTIME.with(|rt| {
+            rt.get().terminated_queue.push_back(Context::active());
             rt.get().switch_without_current();
         })
+    }
+
+    pub fn active() -> Ptr<Context> {
+        crate::scheduler::RUNTIME.with(|rt| rt.get().active_ctx)
+    }
+
+    pub fn join(&mut self) {
+        let active_ctx = Context::active();
+        if active_ctx.0 == self as *mut Context {
+            panic!();
+        }
+        self.wait_queue.push_back(active_ctx);
+        active_ctx.scheduler.get().suspend(active_ctx);
     }
 }
 
@@ -180,6 +204,13 @@ impl<T> JoinHandle<T> {
                 })
             }
         }
+        /*
+        if let Some(value) = self.inner.get().value.take() {
+            return Ok(value.downcast().unwrap());
+        } else {
+            self.inner.thread.get().join();
+            unsafe { Ok(self.inner.0.read().value.unwrap().downcast().unwrap()) }
+        }*/
     }
 }
 
@@ -194,5 +225,11 @@ impl Hash for Context {
 impl PartialEq for Context {
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id
+    }
+}
+
+impl Drop for Context {
+    fn drop(&mut self) {
+        println!("drop");
     }
 }

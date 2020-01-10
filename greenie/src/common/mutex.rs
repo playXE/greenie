@@ -91,7 +91,8 @@ impl Mutex {
         inner.owner = Ptr::null();
         if !inner.wait_queue.is_empty() {
             let ctx = inner.wait_queue.pop_front().unwrap();
-            ctx.get().state = State::Ready;
+            //ctx.get().state = State::Ready;
+            Context::resume(ctx);
         }
     }
 }
