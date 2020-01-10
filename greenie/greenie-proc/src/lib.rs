@@ -9,6 +9,26 @@ use syn::*;
 extern crate quote;
 use syn::fold::Fold;
 
+static HAS_MAIN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+#[proc_macro_attribute]
+pub fn greeny_main(_args: TokenStream, input: TokenStream) -> TokenStream {
+    if HAS_MAIN.load(std::sync::atomic::Ordering::Relaxed) {
+        panic!("greenie: main function already registered");
+    }
+    let input: ItemFn = parse_macro_input!(input as ItemFn);
+    let body = input.block.clone();
+    let main_fn = quote::quote! {
+        fn main() {
+            greenie::create_main(|| {
+                #body
+            });
+        }
+    };
+
+    TokenStream::from(main_fn)
+}
+
 /// Inserts `thread_yield` in function so programmer don't need to insert it by hand
 #[proc_macro_attribute]
 pub fn greenify(_args: TokenStream, input: TokenStream) -> TokenStream {
