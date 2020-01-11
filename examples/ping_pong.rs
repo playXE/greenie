@@ -31,4 +31,8 @@ fn main() {
 
     fpong.start().unwrap();
     fping.start().unwrap();
+
+    fpong.join().unwrap();
+    fping.join().unwrap();
+    println!("Finished");
 }

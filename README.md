@@ -10,7 +10,8 @@ Simple green threads in Rust programming language.
 # TODO
 - Preemptive scheduling
 - Implement FIFO schedulign algorithm
-- Implement `RwLock`,`Barrier`.
+- Implement `RwLock`.
+- Futures
 
 
 # Example

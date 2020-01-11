@@ -38,6 +38,25 @@ impl<T> Fiber<T> {
         }
     }
 
+    /// Creates new fiber. Main difference from `Fiber::new` is that you can
+    /// capture some variables from context much easier: 
+    /// ```rust
+    ///
+    /// use greenie::*;
+    /// create_main( || {
+    ///     let some_variable = 42;
+    ///     let fiber = Fiber::new_capture( |v,_| {
+    ///         println!("{}",v);
+    ///
+    ///         return "Complete";
+    ///     },(some_variable,()));
+    ///
+    ///     fiber.start();
+    ///
+    ///     println!("{}",fiber.join().unwrap());
+    /// });
+    /// ```
+
     pub fn new_capture<F: 'static, A: 'static + ApplyTo<F, Result = T> + Clone>(
         closure: F,
         args: A,
