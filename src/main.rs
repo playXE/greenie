@@ -1,19 +1,11 @@
-use greenie::{common::barrier::Barrier, create_main, greeny_main, Fiber};
-
+use greenie::*;
 #[greeny_main]
 fn main() {
-    let mut fibers = vec![];
-    let barrier = Barrier::new(10);
-    for _ in 0..10 {
-        let fiber = Fiber::new(move || {
-            println!("Before wait");
-            barrier.wait();
-            println!("After wait");
-        });
-        fiber.start().unwrap();
-        fibers.push(fiber);
-    }
-    for f in fibers {
-        f.join().unwrap();
-    }
+    println!("Hello!");
+    let f = Fiber::new(|| println!("Hello from fiber!"));
+
+    f.start().unwrap();
 }
+
+#[greeny_main]
+fn foo() {}

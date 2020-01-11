@@ -1,10 +1,11 @@
 use crate::ctx::*;
+use crate::detail::spinlock::SpinLock;
 use crate::ptr::*;
 use crate::scheduler::*;
-
 struct MutexInner {
     pub(crate) owner: Ptr<Context>,
     pub(crate) wait_queue: std::collections::LinkedList<crate::ptr::Ptr<Context>>,
+    pub(crate) wait_queue_splk: SpinLock,
 }
 
 ///A mutual exclusion primitive useful for protecting shared data
@@ -33,6 +34,7 @@ impl Mutex {
             inner: Ptr::new(MutexInner {
                 owner: Ptr::null(),
                 wait_queue: std::collections::LinkedList::new(),
+                wait_queue_splk: SpinLock::new(()),
             }),
         }
     }
@@ -48,6 +50,8 @@ impl Mutex {
         let inner = self.inner.get();
         loop {
             let active_ctx = RUNTIME.with(|rt| rt.get().active_ctx);
+
+            let lk = self.inner.wait_queue_splk.lock();
             if active_ctx == inner.owner {
                 panic!("greenie: deadlock detected");
             } else if inner.owner.is_null() {
@@ -56,7 +60,8 @@ impl Mutex {
             }
             inner.wait_queue.push_back(active_ctx);
             RUNTIME.with(|rt| {
-                rt.get().suspend_thread(rt.active_ctx);
+                rt.get().suspend_thread_not_yield(rt.active_ctx);
+                drop(lk);
                 rt.get().yield_();
             });
         }
@@ -68,11 +73,13 @@ impl Mutex {
     pub fn try_lock(&self) -> bool {
         let active_ctx = RUNTIME.with(|rt| rt.get().active_ctx);
         let inner = self.inner.get();
+        let lk = self.inner.wait_queue_splk.lock();
         if active_ctx == inner.owner {
             panic!("greenie: deadlock detected");
         } else if inner.owner.is_null() {
             inner.owner = active_ctx;
         }
+        drop(lk);
 
         yield_thread();
         active_ctx == inner.owner
@@ -84,6 +91,7 @@ impl Mutex {
     pub fn unlock(&self) {
         let inner = self.inner.get();
         let active_ctx = RUNTIME.with(|rt| rt.get().active_ctx);
+        let lk = self.inner.wait_queue_splk.lock();
         if active_ctx != inner.owner {
             panic!("greenie: no privilege to perform the operation");
         }
@@ -94,5 +102,6 @@ impl Mutex {
             //ctx.get().state = State::Ready;
             Context::resume(ctx);
         }
+        drop(lk);
     }
 }

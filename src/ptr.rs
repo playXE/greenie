@@ -1,13 +1,15 @@
 //! Just type that wraps `*mut T` for easy access to `T` contents (unsafe!)
 
 #[repr(transparent)]
-pub struct Ptr<T>(pub(crate) *mut T);
+pub struct Ptr<T: ?Sized>(pub(crate) *mut T);
 
-impl<T> Ptr<T> {
+impl<T: ?Sized> Ptr<T> {
     pub fn get(&self) -> &mut T {
         unsafe { &mut *self.0 }
     }
+}
 
+impl<T> Ptr<T> {
     pub fn new(x: T) -> Self {
         Self(Box::into_raw(Box::new(x)))
     }
@@ -81,3 +83,6 @@ unsafe impl<T> IntrusivePointer<T> for Ptr<T> {
         self.0
     }
 }
+
+unsafe impl<T> Send for Ptr<T> {}
+unsafe impl<T> Sync for Ptr<T> {}

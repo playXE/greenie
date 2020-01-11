@@ -1,6 +1,7 @@
 use std::sync::atomic::AtomicPtr;
 
 intrusive_adapter!(pub ReadyAdapter = Ptr<Context> : Context {ready_hook: intrusive_collections::LinkedListLink});
+intrusive_adapter!(pub RemoteAdapter = Ptr<Context> : Context {remote_hook: intrusive_collections::LinkedListLink});
 
 #[repr(C)]
 pub struct Context {
@@ -8,8 +9,8 @@ pub struct Context {
     pub(crate) stack: Vec<u8>,
 
     pub(crate) generator: Option<Rc<crate::generator::Generator>>,
-    pub sp: *mut u8,
-    pub bp: *mut u8,
+    pub(crate) sp: *mut u8,
+    pub(crate) bp: *mut u8,
     pub(crate) handle: crate::ptr::Ptr<JoinHandleInner>,
     pub(crate) twstatus: AtomicPtr<i8>,
     pub(crate) wait_queue: std::collections::LinkedList<Ptr<Context>>,
@@ -17,8 +18,36 @@ pub struct Context {
     pub terminated: bool,
     fun: Box<dyn Fn()>,
     pub(crate) ready_hook: intrusive_collections::LinkedListLink,
+    pub(crate) remote_hook: intrusive_collections::LinkedListLink,
     pub is_main: bool,
     pub is_dispatcher: bool,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[repr(C)]
+pub struct Registers {
+    rax: u64,
+    rbx: u64,
+    rcx: u64,
+    rdx: u64,
+    rsi: u64,
+    rdi: u64,
+    rsp: *mut u8,
+    rbp: *mut u8,
+    r8: u64,
+    r9: u64,
+    r10: u64,
+    r11: u64,
+    r12: u64,
+    r13: u64,
+    r14: u64,
+    r15: u64,
+}
+
+impl Registers {
+    pub unsafe fn get() -> Self {
+        unimplemented!()
+    }
 }
 
 impl Context {
@@ -36,6 +65,7 @@ impl Context {
             scheduler: Ptr::null(),
             terminated: false,
             ready_hook: intrusive_collections::LinkedListLink::new(),
+            remote_hook: intrusive_collections::LinkedListLink::new(),
             is_main: false,
             is_dispatcher: false,
         }
@@ -56,6 +86,10 @@ impl Context {
     /*pub(crate) fn resume_ctx(this: Ptr<Context>, ctx: Ptr<Context>) {
         let prev = this;
     }*/
+
+    pub(crate) fn ready_is_linked(&self) -> bool {
+        self.ready_hook.is_linked()
+    }
 
     pub(crate) fn apply<F: 'static, A: 'static + ApplyTo<F> + Clone>(&mut self, f: F, args: A) {
         self.fun = Box::new(move || {
@@ -96,6 +130,13 @@ impl Context {
         crate::scheduler::RUNTIME.with(|rt| rt.get().active_ctx)
     }
 
+    pub fn get_stack(&self) -> &[u8] {
+        &self.stack
+    }
+
+    pub unsafe fn get_stack_mut(&mut self) -> &mut [u8] {
+        &mut self.stack
+    }
     pub fn join(&mut self) {
         let active_ctx = Context::active();
         if active_ctx.0 == self as *mut Context {

@@ -71,6 +71,7 @@ extern crate intrusive_collections;
 pub mod algorithm;
 pub mod common;
 pub mod ctx;
+pub mod detail;
 pub mod fiber;
 pub mod generator;
 pub mod ptr;
@@ -90,7 +91,6 @@ pub fn thread_sleep(duration: std::time::Duration) {
         crate::yield_thread();
     }
 }
-use ctx::Context;
 
 pub use fiber::Fiber;
 pub use generator::*;
@@ -100,9 +100,15 @@ pub fn create_main(main_fn: fn()) -> ! {
         let h = rt.get().spawn(|f, _| f(), (main_fn, ()));
         rt.get().main_ctx = h.thread();
         rt.main_ctx.get().is_main = true;
+
         rt.get().run();
 
         //unsafe { std::intrinsics::drop_in_place(rt.0) };
     });
     unreachable!()
 }
+
+#[cfg(feature = "atomics")]
+lazy_static::lazy_static!(
+    pub(crate) static ref SCHEDULERS: parking_lot::Mutex<Vec<ptr::Ptr<scheduler::Scheduler>>> = parking_lot::Mutex::new(vec![]);
+);

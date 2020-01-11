@@ -4,7 +4,13 @@ extern "C" {
 }
 
 use crate::ctx::*;
+
 use crate::ptr::*;
+
+#[cfg(feature = "atomics")]
+intrusive_adapter!(pub SchedHook = Ptr<Scheduler> : Scheduler {scheduler_hook: intrusive_collections::LinkedListLink});
+#[cfg(feature = "atomics")]
+use crate::detail::spinlock::SpinLock;
 pub struct Scheduler {
     pub stack_size: usize,
     pub(crate) main_ctx: Ptr<Context>,
@@ -14,9 +20,13 @@ pub struct Scheduler {
     pub(crate) terminated_queue: std::collections::LinkedList<Ptr<Context>>,
     pub(crate) algo: Box<dyn crate::algorithm::Algorithm>,
     pub shutdown: bool,
+    #[cfg(feature = "atomics")]
+    scheduler_hook: intrusive_collections::LinkedListLink,
+    #[cfg(feature = "atomics")]
+    remote_queue: intrusive_collections::linked_list::LinkedList<RemoteAdapter>,
+    #[cfg(feature = "atomics")]
+    remote_queue_splk: SpinLock,
 }
-
-//static mut FIXED_TIMEOUT: preemptive::itimerspec = preemptive::itimerspec::new(0, 0, 0, 100000000);
 
 impl Scheduler {
     /// Create new scheduler instance
@@ -32,9 +42,41 @@ impl Scheduler {
             active_ctx: base_thread,
             algo: Box::new(crate::algorithm::shared_work::SharedWork::new()),
             shutdown: false,
+
+            #[cfg(feature = "atomics")]
+            remote_queue: intrusive_collections::LinkedList::new(RemoteAdapter::new()),
+            #[cfg(feature = "atomics")]
+            remote_queue_splk: SpinLock::new(()),
+            #[cfg(feature = "atomics")]
+            scheduler_hook: intrusive_collections::LinkedListLink::new(),
         }
     }
 
+    #[cfg(feature = "atomics")]
+    fn remote_ready2ready(&mut self) {
+        let mut tmp = intrusive_collections::LinkedList::new(RemoteAdapter::new());
+        let lk = self.remote_queue_splk.lock();
+        std::mem::swap(&mut self.remote_queue, &mut tmp);
+        drop(lk);
+
+        while let Some(context) = tmp.pop_front() {
+            if !context.ready_is_linked() {
+                self.algo.awakened(context);
+            }
+        }
+    }
+
+    #[cfg(feature = "atomics")]
+    pub fn steal(&mut self) -> Ptr<Context> {
+        self.algo.steal()
+    }
+    #[cfg(feature = "atomics")]
+    pub fn schedule_from_remote(&mut self, ctx: Ptr<Context>) {
+        let lk = self.remote_queue_splk.lock();
+        self.remote_queue.push_back(ctx);
+        drop(lk);
+        self.algo.notify();
+    }
     fn dispatch(&mut self) {
         loop {
             if self.shutdown {
@@ -43,6 +85,10 @@ impl Scheduler {
             }
 
             self.cleanup();
+            #[cfg(feature = "atomics")]
+            {
+                self.remote_ready2ready();
+            }
 
             if !self.yield_() {
                 break;
@@ -52,10 +98,24 @@ impl Scheduler {
         self.shutdown = true;
         self.algo.notify();
         self.main_ctx = Ptr::null();
-        std::process::exit(0);
+        #[cfg(feature = "atomics")]
+        unsafe {
+            let lk = super::SCHEDULERS.lock();
+            self.scheduler_hook.force_unlink();
+            drop(lk);
+        }
     }
 
     pub fn run(&mut self) {
+        #[cfg(feature = "atomics")]
+        {
+            crate::SCHEDULERS.lock().push(RUNTIME.with(|rt| *rt));
+            let algo = crate::algorithm::work_stealing::WorkStealing::new(
+                crate::SCHEDULERS.lock().len() - 1,
+            );
+
+            self.algo = Box::new(algo);
+        }
         self.dispatcher_ctx = self
             .spawn(
                 || {
@@ -237,7 +297,16 @@ impl Scheduler {
 
         Ok(())
     }
+    #[cfg(feature = "atomics")]
+    pub fn resume(&mut self, t: Ptr<Context>) {
+        if t.scheduler == Ptr(self as *mut Scheduler) {
+            self.algo.awakened(t);
+        } else {
+            t.scheduler.get().schedule_from_remote(t);
+        }
+    }
 
+    #[cfg(not(feature = "atomics"))]
     pub fn resume(&mut self, t: Ptr<Context>) {
         self.algo.awakened(t);
     }
@@ -257,7 +326,23 @@ impl Scheduler {
                 thread.ready_hook.force_unlink();
             }
         }
-        self.yield_();
+        if thread == Context::active() {
+            self.switch_without_current();
+        } else {
+            self.yield_();
+        }
+    }
+
+    pub fn suspend_thread_not_yield(&mut self, thread: Ptr<Context>) {
+        if thread.ready_hook.is_linked() {
+            unsafe {
+                thread.ready_hook.force_unlink();
+            }
+        }
+
+        if thread == Context::active() {
+            self.switch_without_current();
+        }
     }
 
     /// Yield current thread

@@ -25,6 +25,7 @@ pub fn greeny_main(_args: TokenStream, input: TokenStream) -> TokenStream {
             });
         }
     };
+    HAS_MAIN.store(true,std::sync::atomic::Ordering::Relaxed);
 
     TokenStream::from(main_fn)
 }

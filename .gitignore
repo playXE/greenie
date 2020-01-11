@@ -1,2 +1,4 @@
 ./target
 ./greenie-proc/target
+target/
+greenie-proc/target

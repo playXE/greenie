@@ -1,12 +1,13 @@
 use crate::common::mutex::*;
 use crate::ctx::*;
+use crate::detail::spinlock::*;
 use crate::ptr::*;
 use crate::scheduler::*;
 /// Synchronization primitive that can be used to block a thread, or multiple threads at the same time,
 /// until another thread both modifies a shared variable (the condition), and notifies the condition_variable.
-#[derive(Clone)]
 pub struct Condvar {
     pub(crate) wait_queue: Ptr<std::collections::LinkedList<crate::ptr::Ptr<Context>>>,
+    pub(crate) wait_queue_splk: SpinLock,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -19,6 +20,7 @@ impl Condvar {
     pub fn new() -> Self {
         Self {
             wait_queue: Ptr::new(std::collections::LinkedList::new()),
+            wait_queue_splk: SpinLock::new(()),
         }
     }
     /// wait causes the current thread to block until the condition variable is notified or a spurious wakeup occurs, optionally
@@ -29,11 +31,14 @@ impl Condvar {
     /// When unblocked, regardless of the reason, lock is reacquired and wait exits.
     pub fn wait_for_mutex(&self, m: &Mutex) {
         let active_ctx = RUNTIME.with(|rt| rt.active_ctx);
+        let lk = self.wait_queue_splk.lock();
         self.wait_queue.get().push_back(active_ctx);
         active_ctx.get().twstatus.store(
             self as *const Condvar as *mut i8,
             std::sync::atomic::Ordering::Release,
         );
+
+        drop(lk);
 
         m.unlock();
 
@@ -55,7 +60,7 @@ impl Condvar {
     /// If any threads are waiting on this condvar, calling notify_one unblocks one of the waiting threads.
     pub fn notify_one(&self) {
         //let active_ctx = RUNTIME.with(|rt| rt.get().threads[rt.get().current]);
-
+        let lk = self.wait_queue_splk.lock();
         while let Some(ctx) = self.wait_queue.get().pop_front() {
             let expected = self as *const Condvar as *mut i8;
             let result = ctx.get().twstatus.compare_exchange(
@@ -77,11 +82,12 @@ impl Condvar {
                 }
             }
         }
+        drop(lk);
     }
     /// Unblocks all threads currently waiting for this condvar.
     pub fn notify_all(&self) {
         //let active_ctx = RUNTIME.with(|rt| rt.get().threads[rt.get().current]);
-
+        let lk = self.wait_queue_splk.lock();
         while let Some(ctx) = self.wait_queue.get().pop_front() {
             let expected = self as *const Condvar as *mut i8;
             let result = ctx.get().twstatus.compare_exchange(
@@ -103,6 +109,7 @@ impl Condvar {
                 }
             }
         }
+        drop(lk);
     }
 }
 

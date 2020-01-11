@@ -1,6 +1,10 @@
 [package]
 name = "greenie"
+<<<<<<< Updated upstream
 version = "0.4.0"
+=======
+version = "0.5.0"
+>>>>>>> Stashed changes
 authors = ["playXE <adel.prokurov@protonmail.com>"]
 edition = "2018"
 repository = "https://github.com/playXE/greenie"
@@ -9,13 +13,18 @@ keywords = ["green-threads","green","generators","threads","parallel"]
 license = "MIT"
 description = "Green threads and coroutines in stable Rust"
 [dependencies]
-greenie-proc = "0.2"
+greenie-proc = {path = "greenie-proc"}
 libc = "0.2"
 paste = "0.1"
 hjul = "0.2"
 lazy_static = "1.4"
 parking_lot = "0.10"
 intrusive-collections = "0.8"
+cfg-if = "0.1"
+
+rand = {version = "0.7",optional = true}
 [build-dependencies]
 cc = "1"
 
+[features]
+atomics = ["rand"]

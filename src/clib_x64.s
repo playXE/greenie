@@ -47,3 +47,28 @@ switch_stack:
     jmp  *%r8
 .size switch_stack,.-switch_stack
 .section .note.GNU-stack,"",%progbits
+
+.text
+.globl registers_get
+.type registers_get,@function
+.align 16
+registers_get:
+    movq %rax,0(%rdi)
+    movq %rbx,8(%rdi)
+    movq %rcx,16(%rdi)
+    movq %rdx,24(%rdi)
+    movq %rsi,32(%rdi)
+    movq %rsp,40(%rdi)
+    movq %rbp,48(%rdi)
+    movq %r8, 56(%rdi)
+    movq %r9, 64(%rdi)
+    movq %r10,72(%rdi)
+    movq %r11,80(%rdi)
+    movq %r12,88(%rdi)
+    movq %r13,96(%rdi)
+    movq %r14,104(%rdi)
+    movq %r15,112(%rdi)
+
+    ret
+.size registers_get,.-registers_get
+.section .note.GNU-stack,"",%progbits
