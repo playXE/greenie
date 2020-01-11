@@ -37,23 +37,23 @@
 //!     let chan_2 = Channel::<&'static str>::new(2);
 //!     let fping = Fiber::new_capture(
 //!         |chan_1, chan_2| {
-//!             chan_1.push("ping");
-//!             println!("{}", chan_2.pop().unwrap());
-//!             chan_1.push("ping");
-//!             println!("{}", chan_2.pop().unwrap());
-//!             chan_1.push("ping");
-//!             println!("{}", chan_2.pop().unwrap());
+//!             chan_1.send("ping");
+//!             println!("{}", chan_2.recv().unwrap());
+//!             chan_1.send("ping");
+//!             println!("{}", chan_2.recv().unwrap());
+//!             chan_1.send("ping");
+//!             println!("{}", chan_2.recv().unwrap());
 //!         },
 //!         (chan_1.clone(), chan_2.clone()),
 //!     );
 //!     let fpong = Fiber::new_capture(
 //!         |chan_1, chan_2| {
-//!             chan_2.push("pong");
-//!             println!("{}", chan_1.pop().unwrap());
-//!             chan_2.push("pong");
-//!             println!("{}", chan_1.pop().unwrap());
-//!             chan_2.push("pong");
-//!             println!("{}", chan_1.pop().unwrap());
+//!             chan_2.send("pong");
+//!             println!("{}", chan_1.recv().unwrap());
+//!             chan_2.send("pong");
+//!             println!("{}", chan_1.recv().unwrap());
+//!             chan_2.send("pong");
+//!             println!("{}", chan_1.recv().unwrap());
 //!         },
 //!         (chan_1.clone(), chan_2.clone()),
 //!     );
@@ -68,7 +68,7 @@
 #[macro_use]
 extern crate intrusive_collections;
 
-pub mod channel;
+pub mod algorithm;
 pub mod common;
 pub mod ctx;
 pub mod fiber;
@@ -79,7 +79,10 @@ pub use generator::generator_yield;
 pub use scheduler::{spawn_greenie, yield_thread};
 
 pub use greenie_proc::{greenify, greeny_main};
-
+/// Puts the current thread to sleep for at least the specified amount of time.
+///
+/// The thread may sleep longer than the duration specified due to scheduling specifics or platform-dependent functionality. It will
+/// never sleep less.
 pub fn thread_sleep(duration: std::time::Duration) {
     let now = std::time::Instant::now();
 
@@ -87,13 +90,19 @@ pub fn thread_sleep(duration: std::time::Duration) {
         crate::yield_thread();
     }
 }
+use ctx::Context;
 
 pub use fiber::Fiber;
 pub use generator::*;
-
-pub fn create_main(main_fn: fn()) {
+/// Specify entry point for program that will use greenie.
+pub fn create_main(main_fn: fn()) -> ! {
     scheduler::RUNTIME.with(|rt| {
-        let _ = rt.get().spawn(|f, _| f(), (main_fn, ()));
+        let h = rt.get().spawn(|f, _| f(), (main_fn, ()));
+        rt.get().main_ctx = h.thread();
+        rt.main_ctx.get().is_main = true;
         rt.get().run();
-    })
+
+        //unsafe { std::intrinsics::drop_in_place(rt.0) };
+    });
+    unreachable!()
 }

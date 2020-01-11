@@ -8,10 +8,12 @@ use crate::ptr::*;
 pub struct Scheduler {
     pub stack_size: usize,
     pub(crate) main_ctx: Ptr<Context>,
+    pub(crate) dispatcher_ctx: Ptr<Context>,
     pub active_ctx: Ptr<Context>,
     pub current: usize,
-    queue: intrusive_collections::LinkedList<ReadyAdapter>,
     pub(crate) terminated_queue: std::collections::LinkedList<Ptr<Context>>,
+    pub(crate) algo: Box<dyn crate::algorithm::Algorithm>,
+    pub shutdown: bool,
 }
 
 //static mut FIXED_TIMEOUT: preemptive::itimerspec = preemptive::itimerspec::new(0, 0, 0, 100000000);
@@ -23,22 +25,53 @@ impl Scheduler {
 
         Self {
             main_ctx: base_thread,
+            dispatcher_ctx: Ptr::new(Context::new(1024 * 1024 * 2)),
             current: 0,
             stack_size: 1024 * 1024 * 2,
-            queue: intrusive_collections::LinkedList::new(ReadyAdapter::new()),
             terminated_queue: std::collections::LinkedList::new(),
             active_ctx: base_thread,
+            algo: Box::new(crate::algorithm::shared_work::SharedWork::new()),
+            shutdown: false,
         }
     }
 
-    pub fn run(&mut self) {
-        while self.yield_() {}
+    fn dispatch(&mut self) {
+        loop {
+            if self.shutdown {
+                self.algo.notify();
+                break;
+            }
+
+            self.cleanup();
+
+            if !self.yield_() {
+                break;
+            }
+        }
+        self.cleanup();
+        self.shutdown = true;
+        self.algo.notify();
+        self.main_ctx = Ptr::null();
         std::process::exit(0);
     }
 
+    pub fn run(&mut self) {
+        self.dispatcher_ctx = self
+            .spawn(
+                || {
+                    RUNTIME.with(|rt| {
+                        rt.get().dispatch();
+                    })
+                },
+                (),
+            )
+            .thread();
+        self.dispatcher_ctx.get().is_dispatcher = true;
+        self.suspend();
+    }
+
     pub fn context_switch(&mut self) -> bool {
-        self.cleanup();
-        if self.queue.is_empty() {
+        /*if self.queue.is_empty() {
             return false;
         }
 
@@ -49,6 +82,23 @@ impl Scheduler {
             return false;
         }
         self.queue.push_back(prev);
+        self.active_ctx = next;
+
+        unsafe {
+            switch_stack(&mut prev.get().sp, next.sp, next.get());
+        }*/
+
+        let next = self.algo.pick_next();
+        if next.is_null() {
+            return false;
+        }
+        self.cleanup();
+        let prev = self.active_ctx;
+
+        if next == prev {
+            return false;
+        }
+        self.algo.awakened(self.active_ctx);
         self.active_ctx = next;
 
         unsafe {
@@ -70,7 +120,7 @@ impl Scheduler {
     }
 
     pub fn switch_without_current(&mut self) -> bool {
-        if self.queue.is_empty() {
+        /*if self.queue.is_empty() {
             return false;
         }
 
@@ -84,6 +134,22 @@ impl Scheduler {
         //self.queue.push_back(prev);
         self.active_ctx = next;
 
+        unsafe {
+            switch_stack(&mut prev.get().sp, next.sp, next.get());
+        }*/
+        let next = self.algo.pick_next();
+        if next.is_null() {
+            return false;
+        }
+        self.cleanup();
+        let prev = self.active_ctx;
+
+        if next == prev {
+            return false;
+        }
+        self.active_ctx = next;
+
+        //self.algo.awakened(self.active_ctx);
         unsafe {
             switch_stack(&mut prev.get().sp, next.sp, next.get());
         }
@@ -139,7 +205,7 @@ impl Scheduler {
                 init_stack(available.get().bp.offset(size as isize - 128), ctx_function);
         }
         available.get().scheduler = Ptr(self as *mut _);
-        self.queue.push_back(available);
+        self.algo.awakened(available);
         ThreadHandle {
             marker: std::marker::PhantomData,
             inner: inner_joinhandle,
@@ -173,7 +239,7 @@ impl Scheduler {
     }
 
     pub fn resume(&mut self, t: Ptr<Context>) {
-        self.queue.push_back(t);
+        self.algo.awakened(t);
     }
 
     pub fn suspend(&mut self) {
@@ -240,4 +306,13 @@ pub fn spawn_greenie<F: 'static, A: 'static + ApplyTo<F> + Clone>(
     args: A,
 ) -> ThreadHandle<A::Result> {
     RUNTIME.with(|rt| rt.get().spawn(f, args))
+}
+
+impl Drop for Scheduler {
+    fn drop(&mut self) {
+        self.shutdown = true;
+
+        self.dispatcher_ctx.get().join();
+        self.main_ctx = Ptr::null();
+    }
 }

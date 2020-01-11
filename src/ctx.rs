@@ -17,6 +17,8 @@ pub struct Context {
     pub terminated: bool,
     fun: Box<dyn Fn()>,
     pub(crate) ready_hook: intrusive_collections::LinkedListLink,
+    pub is_main: bool,
+    pub is_dispatcher: bool,
 }
 
 impl Context {
@@ -34,6 +36,8 @@ impl Context {
             scheduler: Ptr::null(),
             terminated: false,
             ready_hook: intrusive_collections::LinkedListLink::new(),
+            is_main: false,
+            is_dispatcher: false,
         }
     }
 
@@ -41,9 +45,22 @@ impl Context {
         this.scheduler.get().resume(this);
     }
 
+    pub(crate) fn detach(&self) {
+        unsafe {
+            if self.ready_hook.is_linked() {
+                self.ready_hook.force_unlink();
+            }
+        }
+    }
+
+    /*pub(crate) fn resume_ctx(this: Ptr<Context>, ctx: Ptr<Context>) {
+        let prev = this;
+    }*/
+
     pub(crate) fn apply<F: 'static, A: 'static + ApplyTo<F> + Clone>(&mut self, f: F, args: A) {
         self.fun = Box::new(move || {
-            let result: A::Result = args.clone().apply_to(&f);
+            let result: Result<A::Result, Box<dyn std::any::Any + 'static + Send>> =
+                Ok(args.clone().apply_to(&f));
             let (generator, handle) = crate::scheduler::RUNTIME.with(|rt| {
                 (
                     rt.active_ctx.generator.clone(),
@@ -58,7 +75,7 @@ impl Context {
                     rt.get().resume(gen.to);
                 });
             } else if !handle.is_null() {
-                handle.get().value = Some(Box::new(result));
+                handle.get().value = Some(result.map(|x| Box::new(x) as Box<dyn std::any::Any>));
             }
         })
     }
@@ -161,7 +178,7 @@ use crate::ptr::Ptr;
 use std::rc::Rc;
 
 pub(crate) struct JoinHandleInner {
-    pub value: Option<Box<dyn std::any::Any>>,
+    pub value: Option<Result<Box<dyn std::any::Any>, Box<dyn std::any::Any + 'static + Send>>>,
     pub thread: Ptr<Context>,
     pub wait: Ptr<Context>,
 }
@@ -182,16 +199,21 @@ impl<T> ThreadHandle<T> {
         self.inner.thread
     }
     /// Waits for the associated thread to finish.
-    pub fn join(self) -> Result<T, &'static str>
+    pub fn join(self) -> Result<T, Box<dyn std::any::Any + 'static + Send>>
     where
         T: 'static,
     {
         unsafe {
             if let Some(value) = self.inner.0.read().value {
-                Ok(*(value.downcast().unwrap()))
+                value.map(|value| *value.downcast().unwrap())
             } else {
                 self.inner.thread.get().join();
-                Ok(*self.inner.0.read().value.unwrap().downcast().unwrap())
+                self.inner
+                    .0
+                    .read()
+                    .value
+                    .unwrap()
+                    .map(|value| *value.downcast().unwrap())
             }
         }
     }

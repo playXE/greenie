@@ -1,5 +1,10 @@
+pub mod barrier;
+pub mod channel;
 pub mod condvar;
 pub mod mutex;
+
+pub use channel::Channel;
+pub use condvar::Condvar;
 
 ///A mutual exclusion primitive useful for protecting shared data
 ///

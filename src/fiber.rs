@@ -63,7 +63,7 @@ impl<T> Fiber<T> {
         Ok(())
     }
     /// Waits for the associated fiber to finish.
-    pub fn join(self) -> Result<T, &'static str>
+    pub fn join(self) -> Result<T, Box<dyn std::any::Any>>
     where
         T: 'static,
     {

@@ -1,5 +1,4 @@
-use greenie::{common::barrier::Barrier, create_main, greeny_main, Fiber};
-
+use greenie::{common::barrier::Barrier, greeny_main, Fiber};
 #[greeny_main]
 fn main() {
     let mut fibers = vec![];
@@ -13,6 +12,7 @@ fn main() {
         fiber.start().unwrap();
         fibers.push(fiber);
     }
+
     for f in fibers {
         f.join().unwrap();
     }
