@@ -1,0 +1,13 @@
+/home/aprokruov/Projects/Rust/greenie/target/debug/deps/net2-195006011d9446ac.rmeta: /home/aprokruov/.cargo/registry/src/github.com-1ecc6299db9ec823/net2-0.2.33/src/lib.rs /home/aprokruov/.cargo/registry/src/github.com-1ecc6299db9ec823/net2-0.2.33/src/tcp.rs /home/aprokruov/.cargo/registry/src/github.com-1ecc6299db9ec823/net2-0.2.33/src/udp.rs /home/aprokruov/.cargo/registry/src/github.com-1ecc6299db9ec823/net2-0.2.33/src/socket.rs /home/aprokruov/.cargo/registry/src/github.com-1ecc6299db9ec823/net2-0.2.33/src/ext.rs /home/aprokruov/.cargo/registry/src/github.com-1ecc6299db9ec823/net2-0.2.33/src/utils.rs /home/aprokruov/.cargo/registry/src/github.com-1ecc6299db9ec823/net2-0.2.33/src/sys/unix/mod.rs /home/aprokruov/.cargo/registry/src/github.com-1ecc6299db9ec823/net2-0.2.33/src/sys/unix/impls.rs /home/aprokruov/.cargo/registry/src/github.com-1ecc6299db9ec823/net2-0.2.33/src/unix.rs
+
+/home/aprokruov/Projects/Rust/greenie/target/debug/deps/net2-195006011d9446ac.d: /home/aprokruov/.cargo/registry/src/github.com-1ecc6299db9ec823/net2-0.2.33/src/lib.rs /home/aprokruov/.cargo/registry/src/github.com-1ecc6299db9ec823/net2-0.2.33/src/tcp.rs /home/aprokruov/.cargo/registry/src/github.com-1ecc6299db9ec823/net2-0.2.33/src/udp.rs /home/aprokruov/.cargo/registry/src/github.com-1ecc6299db9ec823/net2-0.2.33/src/socket.rs /home/aprokruov/.cargo/registry/src/github.com-1ecc6299db9ec823/net2-0.2.33/src/ext.rs /home/aprokruov/.cargo/registry/src/github.com-1ecc6299db9ec823/net2-0.2.33/src/utils.rs /home/aprokruov/.cargo/registry/src/github.com-1ecc6299db9ec823/net2-0.2.33/src/sys/unix/mod.rs /home/aprokruov/.cargo/registry/src/github.com-1ecc6299db9ec823/net2-0.2.33/src/sys/unix/impls.rs /home/aprokruov/.cargo/registry/src/github.com-1ecc6299db9ec823/net2-0.2.33/src/unix.rs
+
+/home/aprokruov/.cargo/registry/src/github.com-1ecc6299db9ec823/net2-0.2.33/src/lib.rs:
+/home/aprokruov/.cargo/registry/src/github.com-1ecc6299db9ec823/net2-0.2.33/src/tcp.rs:
+/home/aprokruov/.cargo/registry/src/github.com-1ecc6299db9ec823/net2-0.2.33/src/udp.rs:
+/home/aprokruov/.cargo/registry/src/github.com-1ecc6299db9ec823/net2-0.2.33/src/socket.rs:
+/home/aprokruov/.cargo/registry/src/github.com-1ecc6299db9ec823/net2-0.2.33/src/ext.rs:
+/home/aprokruov/.cargo/registry/src/github.com-1ecc6299db9ec823/net2-0.2.33/src/utils.rs:
+/home/aprokruov/.cargo/registry/src/github.com-1ecc6299db9ec823/net2-0.2.33/src/sys/unix/mod.rs:
+/home/aprokruov/.cargo/registry/src/github.com-1ecc6299db9ec823/net2-0.2.33/src/sys/unix/impls.rs:
+/home/aprokruov/.cargo/registry/src/github.com-1ecc6299db9ec823/net2-0.2.33/src/unix.rs:
