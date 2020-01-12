@@ -1,10 +1,6 @@
 [package]
 name = "greenie"
-<<<<<<< Updated upstream
-version = "0.4.0"
-=======
 version = "0.5.0"
->>>>>>> Stashed changes
 authors = ["playXE <adel.prokurov@protonmail.com>"]
 edition = "2018"
 repository = "https://github.com/playXE/greenie"

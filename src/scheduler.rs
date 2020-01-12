@@ -326,11 +326,12 @@ impl Scheduler {
                 thread.ready_hook.force_unlink();
             }
         }
-        if thread == Context::active() {
-            self.switch_without_current();
-        } else {
-            self.yield_();
-        }
+        //if thread == Context::active() {
+          //  self.switch_without_current();
+        //} else {
+           // self.switch_without_current();
+        //}
+	self.yield_();
     }
 
     pub fn suspend_thread_not_yield(&mut self, thread: Ptr<Context>) {

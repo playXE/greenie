@@ -1,7 +1,7 @@
 use crate::ctx::*;
 
 use crate::ptr::*;
-use intrusive_collections::{LinkedList, LinkedListLink};
+use intrusive_collections::LinkedList;
 pub struct ContextSpinlockQueue {
     buffer: parking_lot::Mutex<LinkedList<ReadyAdapter>>,
 }

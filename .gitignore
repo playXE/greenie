@@ -2,3 +2,4 @@
 ./greenie-proc/target
 target/
 greenie-proc/target
+Cargo.lock

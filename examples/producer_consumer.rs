@@ -1,11 +1,11 @@
 use common::{condvar::*, Mutex};
 
 use greenie::*;
-
+use std::rc::Rc;
 fn main() {
     create_main(|| {
         let now = std::time::Instant::now();
-        let (m, cv) = (Mutex::new(vec![]), Condvar::new());
+        let (m, cv) = (Mutex::new(vec![]), Rc::new(Condvar::new()));
         let stopped = ptr::Ptr::new(false);
         let flag = stopped.clone();
         let mtx = m.clone();

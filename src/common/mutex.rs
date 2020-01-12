@@ -62,7 +62,7 @@ impl Mutex {
             RUNTIME.with(|rt| {
                 rt.get().suspend_thread_not_yield(rt.active_ctx);
                 drop(lk);
-                rt.get().yield_();
+                rt.get().switch_without_current();
             });
         }
     }

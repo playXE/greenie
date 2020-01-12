@@ -11,7 +11,6 @@ Simple green threads in Rust programming language.
 - Preemptive scheduling.
 - Implement `RwLock`.
 - Futures.
-- Work stealing algorithm.
 
 
 # Example
