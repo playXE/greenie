@@ -17,6 +17,6 @@ fn main() {
     arch_cc!("unix","x86_64" => "asm/jump_x86_64_sysv_elf_gas.S","asm/make_x86_64_sysv_elf_gas.S","asm/ontop_x86_64_sysv_elf_gas.S");
     arch_cc!("unix","arm64" => "asm/jump_arm64_aapcs_elf_gas.S","asm/make_arm64_aapcs_elf_gas.S","asm/ontop_arm64_aapcs_elf_gas.S");
     arch_cc!("unix","arm" => "asm/jump_arm_aapcs_elf_gas.S","asm/make_arm_aapcs_elf_gas.S","asm/ontop_arm_aapcs_elf_gas.S");
-    arch_cc!("windows","i386" => "asm/jump_i386_ms_pe_gas.asm","asm/make_i386_ms_pe_gas.asm","asm/ontop_i386_ms_pe_gas.asm");
-    arch_cc!("windows","x86_64" => "asm/jump_x86_64_ms_pe_gas.asm","asm/make_x86_64_ms_pe_gas.asm","asm/ontop_x86_64_ms_pe_gas.asm");
+    arch_cc!("windows","i386" => "asm/jump_i386_ms_pe_masm.asm","asm/make_i386_ms_pe_masm.asm","asm/ontop_i386_ms_pe_masm.asm");
+    arch_cc!("windows","x86_64" => "asm/jump_x86_64_ms_pe_masm.asm","asm/make_x86_64_ms_pe_masm.asm","asm/ontop_x86_64_ms_pe_masm.asm");
 }

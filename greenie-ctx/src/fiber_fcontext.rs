@@ -38,7 +38,7 @@ extern "C" fn context_ontop<F: Fn(Fiber) -> Fiber>(mut t: Transfer) -> Transfer 
     }
 }
 
-extern "C" fn context_exit(mut t: Transfer) -> Transfer {
+extern "C" fn context_exit(t: Transfer) -> Transfer {
     unsafe {
         let rec = t.data as *mut Record;
         core::ptr::drop_in_place(rec);

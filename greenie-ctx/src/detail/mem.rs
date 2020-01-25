@@ -542,7 +542,7 @@ pub const fn stack_minimum_size() -> usize {
 const MIN_SIZE: usize = 8 * 1024;
 #[cfg(not(target_arch = "x86_64"))]
 const MIN_SIZE: usize = 4 * 1024;
-
+#[cfg(target_family = "unix")]
 lazy_static::lazy_static! {
     #[cfg(target_family = "unix")]
     pub static ref LIMIT: libc::rlimit = {
