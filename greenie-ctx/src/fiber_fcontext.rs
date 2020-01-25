@@ -9,7 +9,7 @@ use fcontext::*;
 pub struct Record {
     pub sctx: crate::stack_context::StackContext,
     pub salloc: crate::stack::DefaultStack,
-    pub fun: Ptr<dyn Fn(Fiber)>,
+    pub fun: Ptr<dyn FnMut(Fiber)>,
 }
 
 impl Record {
@@ -24,9 +24,9 @@ impl Record {
     }
 }
 
-extern "C" fn context_ontop<F: Fn(Fiber) -> Fiber>(mut t: Transfer) -> Transfer {
+extern "C" fn context_ontop<F: FnMut(Fiber) -> Fiber>(mut t: Transfer) -> Transfer {
     unsafe {
-        let p = t.data as *const (F,);
+        let p = t.data as *const (F,) as *mut (F,);
         assert!(!p.is_null());
         t.data = core::ptr::null_mut();
         let mut c = Fiber { fctx: t.fctx };
@@ -54,10 +54,11 @@ extern "C" fn context_entry(mut t: Transfer) {
         t.fctx = (*rec).run(t.fctx);
 
         ontop_fcontext(t.fctx, rec as *mut u8, context_exit);
+        core::hint::unreachable_unchecked();
     }
 }
 
-unsafe fn create_context1(salloc: stack::DefaultStack, f: Ptr<dyn Fn(Fiber)>) -> FContext {
+unsafe fn create_context1(salloc: stack::DefaultStack, f: Ptr<dyn FnMut(Fiber)>) -> FContext {
     let sctx = salloc.allocate();
     let storage = sctx.sp.to_usize() - core::mem::size_of::<Record>() & !0xff;
     let storage = storage as *mut Record;
@@ -101,7 +102,7 @@ impl Continuation {
         }
     }
 
-    pub fn resume_with<F: Fn(Fiber) -> Fiber>(mut self, f: F) -> Continuation {
+    pub fn resume_with<F: FnMut(Fiber) -> Fiber>(mut self, f: F) -> Continuation {
         let p = (f,);
         return Continuation {
             fctx: unsafe {
@@ -122,12 +123,12 @@ pub struct Fiber {
 }
 
 impl Fiber {
-    pub fn new<F: Fn(Fiber) + 'static>(f: F) -> Self {
+    pub fn new<F: FnMut(Fiber) + 'static>(f: F) -> Self {
         Self {
             fctx: unsafe {
                 create_context1(
                     stack::DefaultStack::new(crate::detail::mem::stack_default_size()),
-                    Ptr(Ptr::new(f).0 as *mut dyn Fn(Fiber)),
+                    Ptr(Ptr::new(f).0 as *mut dyn FnMut(Fiber)),
                 )
             },
         }
@@ -143,5 +144,23 @@ impl Fiber {
                 .fctx
             },
         }
+    }
+
+    pub fn resume_with<F: FnMut(Fiber) -> Fiber>(mut self, f: F) -> Self {
+        let p = (f,);
+        return Self {
+            fctx: unsafe {
+                ontop_fcontext(
+                    core::mem::replace(&mut self.fctx, core::ptr::null_mut()),
+                    (&p) as *const (F,) as *mut u8,
+                    context_ontop::<F>,
+                )
+                .fctx
+            },
+        };
+    }
+
+    pub fn is_live(&self) -> bool {
+        !self.fctx.is_null()
     }
 }
