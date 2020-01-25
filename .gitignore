@@ -3,3 +3,6 @@
 target/
 greenie-proc/target
 Cargo.lock
+greenie-ctx/target
+greenie-ctx/Cargo.lock
+
