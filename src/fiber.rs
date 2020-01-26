@@ -6,7 +6,8 @@ use scheduler::*;
 /// Fiber objects are lightweight microthreads which are cooperatively scheduled.
 /// Only one can run at a given time and the `Fiber::yield()` or `yield_thread` functions must be used to switch execution from one fiber to another.
 pub struct Fiber<T> {
-    handle: ThreadHandle<T>,
+    pub(crate) handle: ThreadHandle<T>,
+    pub(crate) started: Ptr<bool>,
 }
 
 impl<T> Fiber<T> {
@@ -35,11 +36,12 @@ impl<T> Fiber<T> {
                 rt.get()
                     .spawn_not_schedule(|closure, _| closure(), (Box::new(closure), ()))
             }),
+            started: Ptr::new(false),
         }
     }
 
     /// Creates new fiber. Main difference from `Fiber::new` is that you can
-    /// capture some variables from context much easier: 
+    /// capture some variables from context much easier:
     /// ```rust
     ///
     /// use greenie::*;
@@ -63,6 +65,7 @@ impl<T> Fiber<T> {
     ) -> Self {
         Self {
             handle: RUNTIME.with(|rt| rt.get().spawn_not_schedule(closure, args)),
+            started: Ptr::new(false),
         }
     }
 
@@ -78,6 +81,7 @@ impl<T> Fiber<T> {
         if self.get_thread().terminated {
             return Err("Fiber terminated");
         }
+        *self.started.get() = true;
         self.get_thread().scheduler.get().resume(self.get_thread());
         Ok(())
     }

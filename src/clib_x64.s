@@ -11,6 +11,7 @@ init_stack:
     ret
 quit:
     xorq %rdi, %rdi
+    
     movq $60, %rax
     syscall
 
@@ -71,4 +72,15 @@ registers_get:
 
     ret
 .size registers_get,.-registers_get
+.section .note.GNU-stack,"",%progbits
+
+.text
+.globl get_stackptr
+.type get_stackptr,@function
+.align 16
+get_stackptr:
+    movq %rsp,%rax
+
+    ret
+.size get_stackptr,.-get_stackptr
 .section .note.GNU-stack,"",%progbits

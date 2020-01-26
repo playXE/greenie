@@ -1,3 +1,4 @@
+pub mod round_robin;
 pub mod shared_work;
 #[cfg(feature = "atomics")]
 pub mod work_stealing;

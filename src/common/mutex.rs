@@ -11,9 +11,7 @@ struct MutexInner {
 ///A mutual exclusion primitive useful for protecting shared data
 ///
 /// This mutex will block threads waiting for the lock to become available. The mutex can also be statically initialized or created via a
-/// new constructor. Each mutex has a type parameter which represents the data that it is protecting. The data can only be accessed
-/// through the RAII guards returned from lock and try_lock, which guarantees that the data is only ever accessed when the mutex
-/// is locked.
+/// new constructor.
 #[derive(Clone, PartialEq, Eq)]
 pub struct Mutex {
     inner: Ptr<MutexInner>,
@@ -41,8 +39,7 @@ impl Mutex {
     /// Acquires a mutex, blocking the current thread until it is able to do so.
     ///
     /// This function will block the local thread until it is available to acquire the mutex. Upon returning, the thread is the only thread with
-    /// the lock held. An RAII guard is returned to allow scoped unlock of the lock. When the guard goes out of scope, the mutex will be
-    /// unlocked.
+    /// the lock held.
     ///
     /// ## Panics
     /// Panics if deadlock found

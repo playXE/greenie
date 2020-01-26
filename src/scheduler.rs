@@ -26,6 +26,7 @@ pub struct Scheduler {
     remote_queue: intrusive_collections::linked_list::LinkedList<RemoteAdapter>,
     #[cfg(feature = "atomics")]
     remote_queue_splk: SpinLock,
+    pub main_sp: *mut u8,
 }
 
 impl Scheduler {
@@ -40,7 +41,7 @@ impl Scheduler {
             stack_size: 1024 * 1024 * 2,
             terminated_queue: std::collections::LinkedList::new(),
             active_ctx: base_thread,
-            algo: Box::new(crate::algorithm::shared_work::SharedWork::new()),
+            algo: Box::new(crate::algorithm::round_robin::RoundRobin::new()),
             shutdown: false,
 
             #[cfg(feature = "atomics")]
@@ -49,6 +50,7 @@ impl Scheduler {
             remote_queue_splk: SpinLock::new(()),
             #[cfg(feature = "atomics")]
             scheduler_hook: intrusive_collections::LinkedListLink::new(),
+            main_sp: std::ptr::null_mut(),
         }
     }
 
@@ -97,12 +99,13 @@ impl Scheduler {
         self.cleanup();
         self.shutdown = true;
         self.algo.notify();
-        self.main_ctx = Ptr::null();
         #[cfg(feature = "atomics")]
         unsafe {
             let lk = super::SCHEDULERS.lock();
             self.scheduler_hook.force_unlink();
             drop(lk);
+            let mut c = Context::new(0);
+            switch_stack(&mut c.sp, self.main_ctx.sp, self.main_ctx.get());
         }
     }
 
@@ -110,11 +113,11 @@ impl Scheduler {
         #[cfg(feature = "atomics")]
         {
             crate::SCHEDULERS.lock().push(RUNTIME.with(|rt| *rt));
-            let algo = crate::algorithm::work_stealing::WorkStealing::new(
-                crate::SCHEDULERS.lock().len() - 1,
-            );
+            //    let algo = crate::algorithm::work_stealing::WorkStealing::new(
+            //        crate::SCHEDULERS.lock().len() - 1,
+            //   );
 
-            self.algo = Box::new(algo);
+            // self.algo = Box::new(algo);
         }
         self.dispatcher_ctx = self
             .spawn(
@@ -127,27 +130,14 @@ impl Scheduler {
             )
             .thread();
         self.dispatcher_ctx.get().is_dispatcher = true;
+        extern "C" {
+            fn get_stackptr() -> *mut u8;
+        }
+        self.main_sp = unsafe { get_stackptr() };
         self.suspend();
     }
 
     pub fn context_switch(&mut self) -> bool {
-        /*if self.queue.is_empty() {
-            return false;
-        }
-
-        let next = self.queue.front().clone_pointer().unwrap();
-        let prev = self.active_ctx;
-        self.queue.pop_front();
-        if next == prev {
-            return false;
-        }
-        self.queue.push_back(prev);
-        self.active_ctx = next;
-
-        unsafe {
-            switch_stack(&mut prev.get().sp, next.sp, next.get());
-        }*/
-
         let next = self.algo.pick_next();
         if next.is_null() {
             return false;
@@ -180,23 +170,6 @@ impl Scheduler {
     }
 
     pub fn switch_without_current(&mut self) -> bool {
-        /*if self.queue.is_empty() {
-            return false;
-        }
-
-        self.cleanup();
-        let next = self.queue.front().clone_pointer().unwrap();
-        let prev = self.active_ctx;
-        self.queue.pop_front();
-        if next == prev {
-            return false;
-        }
-        //self.queue.push_back(prev);
-        self.active_ctx = next;
-
-        unsafe {
-            switch_stack(&mut prev.get().sp, next.sp, next.get());
-        }*/
         let next = self.algo.pick_next();
         if next.is_null() {
             return false;
@@ -209,7 +182,6 @@ impl Scheduler {
         }
         self.active_ctx = next;
 
-        //self.algo.awakened(self.active_ctx);
         unsafe {
             switch_stack(&mut prev.get().sp, next.sp, next.get());
         }
@@ -326,12 +298,7 @@ impl Scheduler {
                 thread.ready_hook.force_unlink();
             }
         }
-        //if thread == Context::active() {
-          //  self.switch_without_current();
-        //} else {
-           // self.switch_without_current();
-        //}
-	self.yield_();
+        self.switch_without_current();
     }
 
     pub fn suspend_thread_not_yield(&mut self, thread: Ptr<Context>) {
@@ -362,7 +329,22 @@ impl Scheduler {
 thread_local! {
     pub static RUNTIME: Ptr<Scheduler> = {
 
-        Ptr::new(Scheduler::new())
+        let sched = Ptr::new(Scheduler::new());
+        assert!(!sched.active_ctx.is_null());
+        sched.get().active_ctx.get().scheduler = sched;
+        sched.get().active_ctx.get().is_main = true;
+        sched.get().dispatcher_ctx = sched.get()
+            .spawn(
+                || {
+                    RUNTIME.with(|rt| {
+                        rt.get().dispatch();
+                    })
+                },
+                (),
+            )
+            .thread();
+        sched.dispatcher_ctx.get().is_dispatcher = true;
+        sched
     };
 
 }
@@ -399,6 +381,5 @@ impl Drop for Scheduler {
         self.shutdown = true;
 
         self.dispatcher_ctx.get().join();
-        self.main_ctx = Ptr::null();
     }
 }

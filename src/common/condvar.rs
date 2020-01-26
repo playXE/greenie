@@ -42,7 +42,7 @@ impl Condvar {
 
         m.unlock();
 
-        yield_thread();
+        active_ctx.scheduler.get().suspend();
 
         m.lock();
     }
@@ -59,7 +59,7 @@ impl Condvar {
     }
     /// If any threads are waiting on this condvar, calling notify_one unblocks one of the waiting threads.
     pub fn notify_one(&self) {
-        //let active_ctx = RUNTIME.with(|rt| rt.get().threads[rt.get().current]);
+        let active_ctx = RUNTIME.with(|rt| rt.get().active_ctx);
         let lk = self.wait_queue_splk.lock();
         while let Some(ctx) = self.wait_queue.get().pop_front() {
             let expected = self as *const Condvar as *mut i8;
@@ -71,12 +71,13 @@ impl Condvar {
             );
             match result {
                 Ok(_) => {
-                    yield_thread();
+                    active_ctx.scheduler.get().resume(ctx);
+
                     break;
                 }
                 Err(x) => {
                     if x.is_null() {
-                        yield_thread();
+                        active_ctx.scheduler.get().resume(ctx);
                     }
                     break;
                 }
@@ -86,7 +87,7 @@ impl Condvar {
     }
     /// Unblocks all threads currently waiting for this condvar.
     pub fn notify_all(&self) {
-        //let active_ctx = RUNTIME.with(|rt| rt.get().threads[rt.get().current]);
+        let active_ctx = RUNTIME.with(|rt| rt.get().active_ctx);
         let lk = self.wait_queue_splk.lock();
         while let Some(ctx) = self.wait_queue.get().pop_front() {
             let expected = self as *const Condvar as *mut i8;
@@ -98,12 +99,12 @@ impl Condvar {
             );
             match result {
                 Ok(_) => {
-                    crate::yield_thread();
+                    active_ctx.scheduler.get().resume(ctx);
                     break;
                 }
                 Err(x) => {
                     if x.is_null() {
-                        crate::yield_thread();
+                        active_ctx.scheduler.get().resume(ctx);
                         break;
                     }
                 }

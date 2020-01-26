@@ -4,7 +4,6 @@ pub mod condvar;
 pub mod mutex;
 
 pub use channel::Channel;
-pub use condvar::Condvar;
 
 ///A mutual exclusion primitive useful for protecting shared data
 ///
@@ -66,7 +65,7 @@ impl<T> Mutex<T> {
 
 pub struct MutexGuard<'a, T> {
     value: &'a mut T,
-    mtx: mutex::Mutex,
+    pub(crate) mtx: mutex::Mutex,
 }
 
 impl<T> Drop for MutexGuard<'_, T> {
@@ -87,5 +86,45 @@ impl<T> Deref for MutexGuard<'_, T> {
 impl<T> DerefMut for MutexGuard<'_, T> {
     fn deref_mut(&mut self) -> &mut T {
         self.value
+    }
+}
+/// Synchronization primitive that can be used to block a thread, or multiple threads at the same time,
+/// until another thread both modifies a shared variable (the condition), and notifies the condition variable.
+pub struct Condvar(condvar::Condvar);
+
+impl Condvar {
+    #[inline(always)]
+    pub fn new() -> Self {
+        Self(condvar::Condvar::new())
+    }
+    /// wait causes the current thread to block until the condition variable is notified or a spurious wakeup occurs, optionally
+    /// looping until some predicate is satisfied.
+    ///
+    /// Atomically unlocks lock, blocks the current executing thread, and adds it to the list of threads waiting on `self`.
+    /// The thread will be unblocked when notify_all() or notify_one() is executed. It may also be unblocked spuriously.
+    /// When unblocked, regardless of the reason, lock is reacquired and wait exits.
+    #[inline(always)]
+    pub fn wait_for_mutex<'a, T>(&self, x: &MutexGuard<'a, T>) {
+        self.0.wait_for_mutex(&x.mtx);
+    }
+    /// Equivalent to
+    /// ```c
+    /// while !pred() {
+    ///       self.wait_for_mutex(m);
+    /// }
+    /// ```
+    #[inline(always)]
+    pub fn wait_pred<'a, T>(&self, x: &MutexGuard<'a, T>, pred: impl FnMut() -> bool) {
+        self.0.wait_pred(&x.mtx, pred);
+    }
+    /// If any threads are waiting on this condvar, calling notify_one unblocks one of the waiting threads.
+    #[inline(always)]
+    pub fn notify_one(&self) {
+        self.0.notify_one()
+    }
+    /// Unblocks all threads currently waiting for this condvar.
+    #[inline(always)]
+    pub fn notify_all(&self) {
+        self.0.notify_all()
     }
 }

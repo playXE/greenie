@@ -31,8 +31,8 @@ pub struct Registers {
     rcx: u64,
     rdx: u64,
     rsi: u64,
-    rdi: u64,
-    rsp: *mut u8,
+    pub rdi: u64,
+    pub rsp: *mut u8,
     rbp: *mut u8,
     r8: u64,
     r9: u64,
@@ -45,7 +45,7 @@ pub struct Registers {
 }
 
 impl Registers {
-    pub unsafe fn get() -> Self {
+    pub fn get() -> Self {
         unimplemented!()
     }
 }
@@ -103,8 +103,11 @@ impl Context {
             });
             if generator.is_some() {
                 let gen = generator.as_ref().map(|x| x.clone()).unwrap();
+
                 gen.state
-                    .set(crate::generator::GeneratorState::Complete(Box::new(result)));
+                    .set(crate::generator::GeneratorState::Complete(Box::new(
+                        result.unwrap(),
+                    )));
                 crate::scheduler::RUNTIME.with(|rt| {
                     rt.get().resume(gen.to);
                 });
@@ -142,6 +145,7 @@ impl Context {
         if active_ctx.0 == self as *mut Context {
             panic!();
         }
+
         self.wait_queue.push_back(active_ctx);
         active_ctx.scheduler.get().suspend();
     }
@@ -245,6 +249,29 @@ impl<T> ThreadHandle<T> {
     pub(crate) fn thread(&self) -> Ptr<Context> {
         self.inner.thread
     }
+
+    pub(crate) fn future_join(&self) -> T
+    where
+        T: 'static,
+    {
+        unsafe {
+            if let Some(value) = self.inner.0.read().value {
+                value.map(|value| *value.downcast().unwrap()).unwrap()
+            } else {
+                if !self.inner.thread.ready_hook.is_linked() {
+                    self.inner.thread.scheduler.get().resume(self.inner.thread);
+                }
+                self.inner.thread.get().join();
+                self.inner
+                    .0
+                    .read()
+                    .value
+                    .unwrap()
+                    .map(|value| *value.downcast().unwrap())
+                    .unwrap()
+            }
+        }
+    }
     /// Waits for the associated thread to finish.
     pub fn join(self) -> Result<T, Box<dyn std::any::Any + 'static + Send>>
     where
@@ -254,6 +281,9 @@ impl<T> ThreadHandle<T> {
             if let Some(value) = self.inner.0.read().value {
                 value.map(|value| *value.downcast().unwrap())
             } else {
+                if !self.inner.thread.ready_hook.is_linked() {
+                    self.inner.thread.scheduler.get().resume(self.inner.thread);
+                }
                 self.inner.thread.get().join();
                 self.inner
                     .0

@@ -17,10 +17,14 @@ lazy_static = "1.4"
 parking_lot = "0.10"
 intrusive-collections = "0.8"
 cfg-if = "0.1"
+futures = "0.3"
 
 rand = {version = "0.7",optional = true}
+num_cpus = {version = "1",optional = true}
+scoped_threadpool = {version = "0.1",optional= true}
+crossbeam-deque = {version= "0.7",optional = true}
 [build-dependencies]
 cc = "1"
 
 [features]
-atomics = ["rand"]
+atomics = ["rand","num_cpus","scoped_threadpool","crossbeam-deque"]

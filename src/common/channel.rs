@@ -42,12 +42,10 @@ impl<T> ChannelInner<T> {
                 );
                 match result {
                     Ok(_) => {
-                        crate::yield_thread();
                         break;
                     }
                     Err(x) => {
                         if x.is_null() {
-                            crate::yield_thread();
                             break;
                         }
                     }
@@ -64,12 +62,14 @@ impl<T> ChannelInner<T> {
                 );
                 match result {
                     Ok(_) => {
-                        crate::yield_thread();
+                        Context::resume(consumer_ctx);
+
                         break;
                     }
                     Err(x) => {
                         if x.is_null() {
-                            crate::yield_thread();
+                            Context::resume(consumer_ctx);
+
                             break;
                         }
                     }
@@ -104,12 +104,13 @@ impl<T> ChannelInner<T> {
                     );
                     match result {
                         Ok(_) => {
-                            crate::yield_thread();
+                            Context::resume(consumer_ctx);
+
                             break;
                         }
                         Err(x) => {
                             if x.is_null() {
-                                crate::yield_thread();
+                                Context::resume(consumer_ctx);
                                 break;
                             }
                         }
@@ -141,12 +142,13 @@ impl<T> ChannelInner<T> {
                     );
                     match result {
                         Ok(_) => {
-                            crate::yield_thread();
+                            Context::resume(consumer_ctx);
                             break;
                         }
                         Err(x) => {
                             if x.is_null() {
-                                crate::yield_thread();
+                                Context::resume(consumer_ctx);
+
                                 break;
                             }
                         }
@@ -187,11 +189,12 @@ impl<T> ChannelInner<T> {
                     );
                     match result {
                         Ok(_) => {
-                            crate::yield_thread();
+                            Context::resume(producer_ctx);
                             break;
                         }
                         _ => {
-                            crate::yield_thread();
+                            Context::resume(producer_ctx);
+
                             break;
                         }
                     }
@@ -225,11 +228,11 @@ impl<T> ChannelInner<T> {
                     );
                     match result {
                         Ok(_) => {
-                            crate::yield_thread();
+                            Context::resume(producer_ctx);
                             break;
                         }
                         _ => {
-                            crate::yield_thread();
+                            Context::resume(producer_ctx);
                             break;
                         }
                     }
@@ -281,7 +284,7 @@ impl<T> Channel<T> {
 
     /// Blocks the current thread until a message is send or the channel is closed.
     ///
-    /// If the channel if sull and not closed, this call will block until send operation can proceed. If the channel becomes
+    /// If the channel if full and not closed, this call will block until send operation can proceed. If the channel becomes
     /// closed, this call will wake up and return `ChannelStatus::Closed`.
     pub fn send(&self, value: T) -> ChannelStatus {
         self.inner.get().push(value)

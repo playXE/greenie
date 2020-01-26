@@ -1,11 +1,13 @@
 use greenie::*;
-#[greeny_main]
+
+async fn foo() {
+    let f = Fiber::new(|| println!("Hello from fiber!"));
+    f.await;
+}
 fn main() {
     println!("Hello!");
-    let f = Fiber::new(|| println!("Hello from fiber!"));
 
-    f.start().unwrap();
+    futures::executor::block_on(foo());
+
+    println!("Done!");
 }
-
-#[greeny_main]
-fn foo() {}
