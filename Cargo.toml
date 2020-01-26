@@ -16,4 +16,4 @@ parking_lot = "*"
 
 [features]
 no-atomics = []
-default = ["no-atomics"]
+default = []

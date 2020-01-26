@@ -6,17 +6,19 @@ if #[cfg(feature="no-atomics")] {
     }
 
     impl SpinLock {
-        pub const fn new() -> Self { Self }
+        pub const fn new(_: ()) -> Self { Self }
         pub const fn lock<'a>(&'a self) -> SpinLockGuard<'a> {
             SpinLockGuard {
                 _marker: std::marker::PhantomData,
             }
         }
     }
+
+    impl<'a> SpinLockGuard<'a> {
+
+    }
 } else {
     pub type SpinLock = parking_lot::Mutex<()>;
     pub type SpinLockGuard<'a> = parking_lot::MutexGuard<'a,()>;
 }
 }
-
-

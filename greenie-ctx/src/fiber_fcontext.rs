@@ -76,6 +76,38 @@ unsafe fn create_context1(salloc: stack::DefaultStack, f: Ptr<dyn FnMut(Fiber)>)
     return jump_fcontext(fctx, record as *mut u8).fctx;
 }
 
+unsafe fn create_context2(
+    palloc: crate::stack_context::StackContext,
+    salloc: stack::DefaultStack,
+    f: Ptr<dyn FnMut(Fiber)>,
+) -> FContext {
+    /*let sctx = salloc.allocate();
+    let storage = sctx.sp.to_usize() - core::mem::size_of::<Record>() & !0xff;
+    let storage = storage as *mut Record;
+    storage.write(Record {
+        sctx,
+        salloc,
+        fun: f,
+    });
+    let record = storage;
+    let stack_top = (storage as usize - 64) as *mut u8;
+    let stack_bottom = (sctx.sp.to_usize() - sctx.size) as *mut u8;
+    let size = stack_top as usize - stack_bottom as usize;*/
+    let storage = ((palloc.sp.to_usize() - core::mem::size_of::<Record>()) & !0xff) as *mut u8;
+    storage.cast::<Record>().write(Record {
+        sctx: palloc,
+        salloc,
+        fun: f,
+    });
+    let rec = storage.cast::<Record>();
+    let stack_top = (storage as usize - 64) as *mut u8;
+    let stack_bottom = (palloc.sp.to_usize() - palloc.size) as *mut u8;
+    let size = stack_top as usize - stack_bottom as usize;
+    let fctx = make_fcontext(stack_top, size, context_entry);
+
+    return jump_fcontext(fctx, rec as *mut u8).fctx;
+}
+
 impl Drop for Record {
     fn drop(&mut self) {
         self.destroy();
